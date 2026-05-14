@@ -1,22 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env');
+  // Skip all backend initialization — app runs on mock data for the demo.
+  // Supabase.initialize() with placeholder credentials makes an HTTP
+  // request that fails and prevents runApp() from being called.
 
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
-  );
-
-  runApp(
-    const ProviderScope(
-      child: DocLinkApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: DocLinkApp()));
 }
