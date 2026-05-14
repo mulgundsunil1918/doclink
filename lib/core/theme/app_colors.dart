@@ -12,6 +12,7 @@ class AppColors {
 
   // Patient theme (light editorial)
   static const patientPrimary = Color(0xFF2563EB);
+  static const patientSecondary = Color(0xFF0891B2);
   static const patientSurface = Color(0xFFF8FAFC);
   static const patientCard = Color(0xFFFFFFFF);
   static const patientBorder = Color(0xFFE2E8F0);
