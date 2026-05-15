@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import '../../../../core/config/payment_config.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -147,6 +149,7 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
           doctorName: _selectedDoctor?.name ?? 'Doctor',
           doctorFee: _selectedDoctor?.consultationFee ?? 500,
           onPay: _handlePayment,
+          patientPhone: ref.read(currentProfileProvider).valueOrNull?.phone,
         ),
       _ => _ConfirmStep(
           doctorName: _selectedDoctor?.name ?? 'Doctor',
@@ -166,16 +169,22 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
     };
   }
 
-  Future<void> _handlePayment() async {
+  Future<void> _handlePayment(String razorpayPaymentId, String method) async {
     final patientId = ref.read(currentProfileProvider).valueOrNull?.id;
     final doctor = _selectedDoctor;
     if (patientId == null || doctor == null) return;
 
-    final typeMap = {
+    const typeMap = {
       'Video': 'video',
       'Audio': 'audio',
       'Chat': 'chat',
       'In-Person': 'in_person',
+    };
+    const feeMultiplier = {
+      'Video': 1.0,
+      'Audio': 0.75,
+      'Chat': 0.5,
+      'In-Person': 0.5,
     };
 
     final now = DateTime.now();
@@ -186,6 +195,7 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
     if (slotParts[1] == 'PM' && hour != 12) hour += 12;
     if (slotParts[1] == 'AM' && hour == 12) hour = 0;
     final scheduledAt = DateTime(now.year, now.month, now.day, hour, minute);
+    final amount = doctor.consultationFee * (feeMultiplier[_selectedType] ?? 1.0);
 
     try {
       final id = await bookAppointment(
@@ -195,13 +205,27 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
         scheduledAt: scheduledAt,
         chiefComplaint: null,
       );
+      if (id != null) {
+        await savePayment(
+          appointmentId: id,
+          patientId: patientId,
+          amount: amount,
+          method: method,
+          razorpayPaymentId: razorpayPaymentId,
+        );
+      }
       setState(() {
         _bookedAppointmentId = id;
         _step = 4;
       });
       ref.invalidate(patientAppointmentsProvider);
-    } catch (_) {
-      setState(() => _step = 4);
+      ref.invalidate(patientPaymentsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Booking failed: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 }
@@ -545,13 +569,15 @@ class _Legend extends StatelessWidget {
 class _PaymentStep extends StatefulWidget {
   final String type, slot, doctorName;
   final double doctorFee;
-  final Future<void> Function() onPay;
+  final String? patientPhone;
+  final Future<void> Function(String paymentId, String method) onPay;
   const _PaymentStep({
     required this.type,
     required this.slot,
     required this.doctorName,
     required this.doctorFee,
     required this.onPay,
+    this.patientPhone,
   });
 
   @override
@@ -559,18 +585,80 @@ class _PaymentStep extends StatefulWidget {
 }
 
 class _PaymentStepState extends State<_PaymentStep> {
-  String _method = 'UPI';
+  late final Razorpay _razorpay;
   bool _paying = false;
+
+  static const _feeMultiplier = {
+    'Video': 1.0,
+    'Audio': 0.75,
+    'Chat': 0.5,
+    'In-Person': 0.5,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _onError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _onExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
+  double get _fee =>
+      widget.doctorFee * (_feeMultiplier[widget.type] ?? 1.0);
+
+  void _openCheckout() {
+    setState(() => _paying = true);
+    final options = {
+      'key': PaymentConfig.razorpayKeyId,
+      'amount': (_fee * 100).toInt(), // paise
+      'name': PaymentConfig.appName,
+      'description': '${widget.type} Consultation · Dr. ${widget.doctorName}',
+      'currency': PaymentConfig.currency,
+      'prefill': {
+        'contact': widget.patientPhone ?? '',
+      },
+      'theme': {'color': '#4F46E5'},
+      'modal': {'ondismiss': null},
+    };
+    _razorpay.open(options);
+  }
+
+  void _onSuccess(PaymentSuccessResponse response) {
+    setState(() => _paying = false);
+    widget.onPay(response.paymentId ?? '', 'razorpay');
+  }
+
+  void _onError(PaymentFailureResponse response) {
+    setState(() => _paying = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response.message ?? 'Payment failed. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _onExternalWallet(ExternalWalletResponse response) {
+    setState(() => _paying = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('External wallet: ${response.walletName}')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final feeMap = {
-      'Video': widget.doctorFee,
-      'Audio': widget.doctorFee * 0.75,
-      'Chat': widget.doctorFee * 0.5,
-      'In-Person': widget.doctorFee * 0.5,
-    };
-    final fee = (feeMap[widget.type] ?? widget.doctorFee).toInt();
+    final fee = _fee.toInt();
     final now = DateTime.now();
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -581,6 +669,7 @@ class _PaymentStepState extends State<_PaymentStep> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Order summary
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -615,66 +704,43 @@ class _PaymentStepState extends State<_PaymentStep> {
         ),
         const SizedBox(height: 16),
 
-        const Text('Payment Method',
-            style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.slate700,
-                fontSize: 14)),
-        const SizedBox(height: 10),
-
-        ...['UPI', 'Card', 'NetBanking', 'Wallet'].map((m) => GestureDetector(
-              onTap: () => setState(() => _method = m),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _method == m
-                        ? AppColors.patientPrimary
-                        : AppColors.patientBorder,
-                    width: _method == m ? 2 : 0.5,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      switch (m) {
-                        'UPI' => Icons.qr_code_rounded,
-                        'Card' => Icons.credit_card_rounded,
-                        'NetBanking' => Icons.account_balance_rounded,
-                        _ => Icons.account_balance_wallet_rounded,
-                      },
-                      color: _method == m
-                          ? AppColors.patientPrimary
-                          : AppColors.slate400,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(m,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            color: _method == m
-                                ? AppColors.patientPrimary
-                                : AppColors.slate700,
-                          )),
-                    ),
-                    if (_method == m)
-                      const Icon(Icons.check_circle_rounded,
-                          color: AppColors.patientPrimary, size: 18),
-                  ],
+        // Razorpay info banner
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.patientPrimary.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: AppColors.patientPrimary.withValues(alpha: 0.2),
+                width: 0.5),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.lock_rounded,
+                  color: AppColors.patientPrimary, size: 18),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Secured by Razorpay. Pay via UPI, Card, NetBanking, or Wallet — all in one checkout.',
+                  style: TextStyle(
+                      color: AppColors.slate600,
+                      fontSize: 12,
+                      height: 1.4),
                 ),
               ),
-            )),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
 
-        const SizedBox(height: 16),
+        // Pay button — opens Razorpay native checkout
         ElevatedButton(
-          onPressed: _paying ? null : _pay,
+          onPressed: _paying ? null : _openCheckout,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.patientPrimary,
             minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
           child: _paying
               ? const SizedBox(
@@ -682,25 +748,33 @@ class _PaymentStepState extends State<_PaymentStep> {
                   height: 20,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
-              : Text('Pay ₹$fee via $_method'),
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.payment_rounded, size: 20),
+                    const SizedBox(width: 8),
+                    Text('Pay ₹$fee · Razorpay',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
+                ),
         ),
         const SizedBox(height: 8),
-        const Center(
-          child: Text('Secured by Razorpay · 256-bit SSL',
-              style:
-                  TextStyle(color: AppColors.slate400, fontSize: 11)),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.verified_user_rounded,
+                  size: 12, color: AppColors.slate400),
+              SizedBox(width: 4),
+              Text('256-bit SSL · PCI DSS Compliant',
+                  style: TextStyle(
+                      color: AppColors.slate400, fontSize: 10)),
+            ],
+          ),
         ),
       ],
     );
-  }
-
-  Future<void> _pay() async {
-    setState(() => _paying = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      setState(() => _paying = false);
-      await widget.onPay();
-    }
   }
 }
 

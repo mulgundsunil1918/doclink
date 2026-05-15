@@ -939,6 +939,23 @@ Future<void> updatePatientProfile({
   }
 }
 
+Future<void> savePayment({
+  required String appointmentId,
+  required String patientId,
+  required double amount,
+  required String method,
+  required String razorpayPaymentId,
+}) async {
+  await _db.from('payments').insert({
+    'appointment_id': appointmentId,
+    'patient_id': patientId,
+    'amount': amount,
+    'method': method.toLowerCase(),
+    'status': 'completed',
+    'razorpay_payment_id': razorpayPaymentId,
+  });
+}
+
 Future<void> savePrescription({
   required String doctorId,
   required String patientId,
