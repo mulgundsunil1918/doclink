@@ -1,21 +1,24 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/dl_card.dart';
 
-class WaitingRoomScreen extends StatefulWidget {
-  const WaitingRoomScreen({super.key});
+class WaitingRoomScreen extends ConsumerStatefulWidget {
+  final String? appointmentId;
+  const WaitingRoomScreen({super.key, this.appointmentId});
+
   @override
-  State<WaitingRoomScreen> createState() => _WaitingRoomScreenState();
+  ConsumerState<WaitingRoomScreen> createState() => _WaitingRoomScreenState();
 }
 
-class _WaitingRoomScreenState extends State<WaitingRoomScreen>
+class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen>
     with SingleTickerProviderStateMixin {
-  int _position = 2;
-  int _secondsLeft = 740;
-  late Timer _timer;
   late AnimationController _pulseCtrl;
   late Animation<double> _pulse;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -26,218 +29,325 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen>
     )..repeat(reverse: true);
     _pulse = Tween<double>(begin: 0.85, end: 1.0).animate(_pulseCtrl);
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_secondsLeft > 0) setState(() => _secondsLeft--);
+    // Refresh queue position every 30s
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (widget.appointmentId != null) {
+        ref.invalidate(queuePositionProvider(widget.appointmentId!));
+      }
     });
   }
 
   @override
   void dispose() {
-    _timer.cancel();
     _pulseCtrl.dispose();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
-  String get _waitTime {
-    final mins = _secondsLeft ~/ 60;
-    final secs = _secondsLeft % 60;
-    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  void _joinConsultation(AppAppointment apt) {
+    switch (apt.type) {
+      case 'video':
+      case 'audio':
+        context.push('/patient/video-call');
+        break;
+      case 'chat':
+        context.push('/patient/chat', extra: apt.id);
+        break;
+      default:
+        // in_person — nothing to join remotely
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please proceed to the clinic when called'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
+  Future<void> _confirmCancel() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel Appointment?'),
+        content: const Text(
+            'Cancellation charges may apply. Do you want to continue?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('No, Stay')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+            child: const Text('Cancel Appointment'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      if (widget.appointmentId != null) {
+        try {
+          await updateAppointmentStatus(widget.appointmentId!, 'cancelled');
+        } catch (_) {}
+      }
+      if (mounted) context.pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final id = widget.appointmentId;
+
     return Scaffold(
       backgroundColor: AppColors.patientSurface,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         title: const Text('Waiting Room',
-            style: TextStyle(color: AppColors.slate800, fontWeight: FontWeight.w700)),
+            style:
+                TextStyle(color: AppColors.slate800, fontWeight: FontWeight.w700)),
         actions: [
           TextButton(
-            onPressed: () => _confirmCancel(context),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFFDC2626))),
+            onPressed: _confirmCancel,
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFFDC2626))),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            // Doctor card
-            DlCard(
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.patientPrimary.withValues(alpha: 0.1),
-                    child: const Text('AM',
-                        style: TextStyle(
-                            color: AppColors.patientPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Dr. Arjun Mehta',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.slate800,
-                                fontSize: 15)),
-                        Text('General Physician',
-                            style: TextStyle(color: AppColors.slate500, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF059669),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text('In Session', style: TextStyle(color: Color(0xFF059669), fontSize: 11)),
-                    ],
-                  ),
-                ],
-              ),
+      body: id == null
+          ? _NoAppointmentState(onBack: () => context.pop())
+          : _WaitingBody(
+              appointmentId: id,
+              pulse: _pulse,
+              onJoin: _joinConsultation,
             ),
-            const SizedBox(height: 32),
-            // Pulse circle
-            ScaleTransition(
-              scale: _pulse,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AppColors.patientPrimary.withValues(alpha: 0.15),
-                      AppColors.patientPrimary.withValues(alpha: 0.03),
-                    ],
-                  ),
-                ),
-                child: Center(
-                  child: Container(
-                    width: 110,
-                    height: 110,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.patientPrimary,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '#$_position',
+    );
+  }
+}
+
+class _NoAppointmentState extends StatelessWidget {
+  final VoidCallback onBack;
+  const _NoAppointmentState({required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.event_busy_rounded,
+              size: 64, color: AppColors.slate300),
+          const SizedBox(height: 16),
+          const Text('No appointment found',
+              style: TextStyle(
+                  color: AppColors.slate600,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const Text('Please book an appointment first.',
+              style: TextStyle(color: AppColors.slate400, fontSize: 13)),
+          const SizedBox(height: 24),
+          TextButton(onPressed: onBack, child: const Text('Go Back')),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaitingBody extends ConsumerWidget {
+  final String appointmentId;
+  final Animation<double> pulse;
+  final void Function(AppAppointment) onJoin;
+  const _WaitingBody({
+    required this.appointmentId,
+    required this.pulse,
+    required this.onJoin,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final aptAsync = ref.watch(appointmentByIdProvider(appointmentId));
+    final posAsync = ref.watch(queuePositionProvider(appointmentId));
+
+    final position = posAsync.valueOrNull ?? 0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const SizedBox(height: 16),
+          // Doctor card
+          aptAsync.when(
+            loading: () => const DlCard(
+              child: Center(
+                  child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              )),
+            ),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (apt) {
+              if (apt == null) return const SizedBox.shrink();
+              final initials = (apt.doctorName ?? 'DR')
+                  .split(' ')
+                  .where((p) => p.isNotEmpty)
+                  .take(2)
+                  .map((p) => p[0].toUpperCase())
+                  .join();
+              return DlCard(
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor:
+                          AppColors.patientPrimary.withValues(alpha: 0.1),
+                      child: Text(initials,
                           style: const TextStyle(
-                              color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800),
+                              color: AppColors.patientPrimary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16)),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(apt.doctorName ?? 'Doctor',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.slate800,
+                                  fontSize: 15)),
+                          Text(apt.doctorSpecialty ?? 'Physician',
+                              style: const TextStyle(
+                                  color: AppColors.slate500, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                              color: Color(0xFF059669),
+                              shape: BoxShape.circle),
                         ),
-                        const Text('in queue',
-                            style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        const Text('Available',
+                            style: TextStyle(
+                                color: Color(0xFF059669), fontSize: 11)),
                       ],
                     ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 32),
+          // Pulse circle with queue position
+          ScaleTransition(
+            scale: pulse,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.patientPrimary.withValues(alpha: 0.15),
+                    AppColors.patientPrimary.withValues(alpha: 0.03),
+                  ],
+                ),
+              ),
+              child: Center(
+                child: Container(
+                  width: 110,
+                  height: 110,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.patientPrimary,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      posAsync.isLoading
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : Text(
+                              '#$position',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w800),
+                            ),
+                      const Text('in queue',
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 32),
-            Text(
-              'Estimated wait: $_waitTime',
-              style: const TextStyle(
-                  color: AppColors.slate700, fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            position == 0
+                ? 'You\'re next!'
+                : '$position patient${position == 1 ? '' : 's'} ahead of you',
+            style: const TextStyle(
+                color: AppColors.slate700,
+                fontSize: 18,
+                fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'You\'ll be notified when the doctor is ready',
+            style: TextStyle(color: AppColors.slate500, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
+          // Status timeline
+          DlCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Queue Status',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.slate800)),
+                const SizedBox(height: 16),
+                _TimelineStep(label: 'Appointment Confirmed', done: true),
+                _TimelineStep(label: 'Entered Queue', done: true),
+                _TimelineStep(
+                    label: 'Your Turn',
+                    done: position == 0,
+                    active: position > 0),
+                _TimelineStep(
+                    label: 'Consultation', done: false, last: true),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'You\'ll be notified when the doctor is ready',
-              style: TextStyle(color: AppColors.slate500, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            // Status timeline
-            DlCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Queue Status',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.slate800)),
-                  const SizedBox(height: 16),
-                  _TimelineStep(label: 'Appointment Confirmed', done: true),
-                  _TimelineStep(label: 'Payment Received', done: true),
-                  _TimelineStep(label: 'Entered Queue', done: true),
-                  _TimelineStep(label: 'Your Turn', done: false, active: true),
-                  _TimelineStep(label: 'Consultation', done: false, last: true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            // While you wait
-            DlCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('While you wait…',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.slate800)),
-                  const SizedBox(height: 12),
-                  _WaitOption(
-                    icon: Icons.description_rounded,
-                    label: 'Share your recent reports',
-                    onTap: () {},
-                  ),
-                  _WaitOption(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    label: 'Message the receptionist',
-                    onTap: () {},
-                  ),
-                  _WaitOption(
-                    icon: Icons.list_alt_rounded,
-                    label: 'Review your symptoms list',
-                    onTap: () {},
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
+          ),
+          const SizedBox(height: 24),
+          aptAsync.maybeWhen(
+            data: (apt) => SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.videocam_rounded),
-                label: const Text('Join When Ready'),
+                onPressed: apt != null ? () => onJoin(apt) : null,
+                icon: Icon(apt?.type == 'chat'
+                    ? Icons.chat_rounded
+                    : Icons.videocam_rounded),
+                label: Text(apt?.type == 'in_person'
+                    ? 'Proceed to Clinic'
+                    : 'Join Consultation'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.patientPrimary,
                   minimumSize: const Size(double.infinity, 50),
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _confirmCancel(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancel Appointment?'),
-        content: const Text('Cancellation charges may apply. Do you want to continue?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('No, Stay')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.maybePop(context);
-            },
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
-            child: const Text('Cancel Appointment'),
+            orElse: () => const SizedBox.shrink(),
           ),
         ],
       ),
@@ -274,12 +384,17 @@ class _TimelineStep extends StatelessWidget {
               width: 20,
               height: 20,
               decoration: BoxDecoration(
-                color: done ? const Color(0xFF059669) : active ? AppColors.patientPrimary : Colors.white,
+                color: done
+                    ? const Color(0xFF059669)
+                    : active
+                        ? AppColors.patientPrimary
+                        : Colors.white,
                 shape: BoxShape.circle,
                 border: Border.all(color: color, width: 2),
               ),
               child: done
-                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 12)
+                  ? const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 12)
                   : null,
             ),
             if (!last)
@@ -301,31 +416,13 @@ class _TimelineStep extends StatelessWidget {
                   : active
                       ? AppColors.patientPrimary
                       : AppColors.slate400,
-              fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+              fontWeight:
+                  active ? FontWeight.w600 : FontWeight.normal,
               fontSize: 13,
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _WaitOption extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  const _WaitOption({required this.icon, required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      leading: Icon(icon, color: AppColors.patientPrimary, size: 20),
-      title: Text(label, style: const TextStyle(color: AppColors.slate700, fontSize: 13)),
-      trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.slate400, size: 18),
-      contentPadding: EdgeInsets.zero,
-      onTap: onTap,
     );
   }
 }

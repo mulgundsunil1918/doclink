@@ -1,38 +1,97 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import '../../../../core/mock/mock_data.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/dl_card.dart';
 
-class EarningsScreen extends StatefulWidget {
+class EarningsScreen extends ConsumerStatefulWidget {
   const EarningsScreen({super.key});
   @override
-  State<EarningsScreen> createState() => _EarningsScreenState();
+  ConsumerState<EarningsScreen> createState() => _EarningsScreenState();
 }
 
-class _EarningsScreenState extends State<EarningsScreen> {
+class _EarningsScreenState extends ConsumerState<EarningsScreen> {
   int _touchedIndex = -1;
 
   @override
   Widget build(BuildContext context) {
-    final doc = MockData.doctor;
-    final monthly = MockData.earningsMonthly;
-    final breakdown = MockData.earningsBreakdown;
+    final doctorAsync = ref.watch(currentDoctorProvider);
+    final monthlyAsync = ref.watch(doctorMonthlyEarningsProvider);
+    final breakdownAsync = ref.watch(doctorBreakdownProvider);
+
+    return doctorAsync.when(
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, __) => _buildScaffold(context, null, [], []),
+      data: (doc) => monthlyAsync.when(
+        loading: () => _buildScaffold(context, doc, [], []),
+        error: (_, __) => _buildScaffold(context, doc, [], []),
+        data: (monthly) => breakdownAsync.when(
+          loading: () => _buildScaffold(context, doc, monthly, []),
+          error: (_, __) => _buildScaffold(context, doc, monthly, []),
+          data: (breakdown) =>
+              _buildScaffold(context, doc, monthly, breakdown),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScaffold(
+    BuildContext context,
+    AppDoctor? doc,
+    List<({String month, double amount})> monthly,
+    List<({String type, int count})> breakdown,
+  ) {
+    final earningsToday = doc?.earningsToday ?? 0;
+    final earningsMonth = doc?.earningsMonth ?? 0;
+    final walletBalance = earningsMonth * 0.9;
+
+    // Build chart data — use real monthly if available, else zeros
+    final chartData = monthly.isNotEmpty
+        ? monthly
+        : List.generate(
+            6,
+            (i) {
+              const labels = [
+                'Jan','Feb','Mar','Apr','May','Jun',
+                'Jul','Aug','Sep','Oct','Nov','Dec'
+              ];
+              final m = (DateTime.now().month - 5 + i - 1) % 12;
+              return (month: labels[m], amount: 0.0);
+            });
+
+    final maxY = chartData.isEmpty
+        ? 100000.0
+        : (chartData.map((e) => e.amount).reduce((a, b) => a > b ? a : b) *
+                1.2)
+            .clamp(10000.0, double.infinity);
+
+    // Breakdown colors by type
+    const typeColors = {
+      'video': Color(0xFF1D4ED8),
+      'audio': Color(0xFF7C3AED),
+      'chat': Color(0xFF0D9488),
+      'in_person': Color(0xFFD97706),
+    };
+    const typeLabels = {
+      'video': 'Video',
+      'audio': 'Audio',
+      'chat': 'Chat',
+      'in_person': 'In-Person',
+    };
+
+    final totalConsults = breakdown.fold(0, (s, b) => s + b.count);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Earnings'),
-        actions: [
-          IconButton(
-              icon: const Icon(Icons.download_outlined), onPressed: () {}),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           children: [
-            // Summary cards
             Row(
               children: [
                 Expanded(
@@ -45,13 +104,13 @@ class _EarningsScreenState extends State<EarningsScreen> {
                                 color: AppColors.slate400, fontSize: 11)),
                         const SizedBox(height: 4),
                         Text(
-                          '₹${doc.earningsToday.toStringAsFixed(0)}',
+                          '₹${earningsToday.toStringAsFixed(0)}',
                           style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w700,
                               color: AppColors.doctorAccent),
                         ),
-                        const Text('${0} consultations',
+                        const Text('from consultations',
                             style: TextStyle(
                                 color: AppColors.slate500, fontSize: 11)),
                       ],
@@ -69,14 +128,16 @@ class _EarningsScreenState extends State<EarningsScreen> {
                                 color: AppColors.slate400, fontSize: 11)),
                         const SizedBox(height: 4),
                         Text(
-                          '₹${(doc.earningsMonth / 1000).toStringAsFixed(1)}k',
+                          earningsMonth >= 1000
+                              ? '₹${(earningsMonth / 1000).toStringAsFixed(1)}k'
+                              : '₹${earningsMonth.toStringAsFixed(0)}',
                           style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w700,
                               color: AppColors.doctorPrimary),
                         ),
-                        const Text('111 consultations',
-                            style: TextStyle(
+                        Text('${doc?.totalPatients ?? 0} total patients',
+                            style: const TextStyle(
                                 color: AppColors.slate500, fontSize: 11)),
                       ],
                     ),
@@ -86,7 +147,6 @@ class _EarningsScreenState extends State<EarningsScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Wallet balance
             DlCard(
               child: Row(
                 children: [
@@ -109,15 +169,22 @@ class _EarningsScreenState extends State<EarningsScreen> {
                             style: TextStyle(
                                 color: AppColors.slate400, fontSize: 12)),
                         Text(
-                          '₹${(doc.earningsMonth * 0.9 / 1000).toStringAsFixed(1)}k',
+                          walletBalance >= 1000
+                              ? '₹${(walletBalance / 1000).toStringAsFixed(1)}k'
+                              : '₹${walletBalance.toStringAsFixed(0)}',
                           style: const TextStyle(
                               fontSize: 22, fontWeight: FontWeight.w700),
                         ),
+                        const Text('90% of monthly earnings',
+                            style: TextStyle(
+                                color: AppColors.slate400, fontSize: 11)),
                       ],
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: () => _showWithdrawSheet(context),
+                    onPressed: walletBalance > 0
+                        ? () => _showWithdrawSheet(context, walletBalance)
+                        : null,
                     style: ElevatedButton.styleFrom(
                         minimumSize: const Size(100, 40)),
                     child: const Text('Withdraw'),
@@ -127,7 +194,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Revenue chart
+            // Monthly revenue chart
             DlCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,118 +203,143 @@ class _EarningsScreenState extends State<EarningsScreen> {
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 4),
                   const Text('Last 6 months',
-                      style:
-                          TextStyle(color: AppColors.slate400, fontSize: 12)),
+                      style: TextStyle(
+                          color: AppColors.slate400, fontSize: 12)),
                   const SizedBox(height: 20),
                   SizedBox(
                     height: 160,
-                    child: BarChart(
-                      BarChartData(
-                        alignment: BarChartAlignment.spaceAround,
-                        maxY: 100000,
-                        barTouchData: BarTouchData(
-                          touchTooltipData: BarTouchTooltipData(
-                            getTooltipItem: (g, gi, rod, ri) => BarTooltipItem(
-                              '₹${(rod.toY / 1000).toStringAsFixed(0)}k',
-                              const TextStyle(color: Colors.white, fontSize: 11),
+                    child: chartData.every((e) => e.amount == 0)
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.bar_chart_rounded,
+                                    size: 40, color: AppColors.slate200),
+                                SizedBox(height: 8),
+                                Text('No payment data yet',
+                                    style: TextStyle(
+                                        color: AppColors.slate400,
+                                        fontSize: 12)),
+                              ],
+                            ),
+                          )
+                        : BarChart(
+                            BarChartData(
+                              alignment: BarChartAlignment.spaceAround,
+                              maxY: maxY,
+                              barTouchData: BarTouchData(
+                                touchTooltipData: BarTouchTooltipData(
+                                  getTooltipItem: (g, gi, rod, ri) =>
+                                      BarTooltipItem(
+                                    rod.toY >= 1000
+                                        ? '₹${(rod.toY / 1000).toStringAsFixed(1)}k'
+                                        : '₹${rod.toY.toStringAsFixed(0)}',
+                                    const TextStyle(
+                                        color: Colors.white, fontSize: 11),
+                                  ),
+                                ),
+                                touchCallback: (e, res) {
+                                  setState(() => _touchedIndex =
+                                      res?.spot?.touchedBarGroupIndex ?? -1);
+                                },
+                              ),
+                              titlesData: FlTitlesData(
+                                show: true,
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (v, _) {
+                                      final i = v.toInt();
+                                      if (i < 0 || i >= chartData.length) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      return Text(
+                                        chartData[i].month,
+                                        style: const TextStyle(
+                                            color: AppColors.slate400,
+                                            fontSize: 10),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                leftTitles: const AxisTitles(
+                                    sideTitles:
+                                        SideTitles(showTitles: false)),
+                                topTitles: const AxisTitles(
+                                    sideTitles:
+                                        SideTitles(showTitles: false)),
+                                rightTitles: const AxisTitles(
+                                    sideTitles:
+                                        SideTitles(showTitles: false)),
+                              ),
+                              gridData: FlGridData(
+                                show: true,
+                                horizontalInterval: maxY / 4,
+                                getDrawingHorizontalLine: (_) => FlLine(
+                                  color: AppColors.slate200,
+                                  strokeWidth: 0.5,
+                                ),
+                              ),
+                              borderData: FlBorderData(show: false),
+                              barGroups:
+                                  chartData.asMap().entries.map((e) {
+                                final touched = e.key == _touchedIndex;
+                                return BarChartGroupData(
+                                  x: e.key,
+                                  barRods: [
+                                    BarChartRodData(
+                                      toY: e.value.amount,
+                                      color: touched
+                                          ? AppColors.doctorAccent
+                                          : AppColors.doctorPrimary,
+                                      width: 20,
+                                      borderRadius:
+                                          BorderRadius.circular(4),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
                             ),
                           ),
-                          touchCallback: (e, res) {
-                            setState(() => _touchedIndex =
-                                res?.spot?.touchedBarGroupIndex ?? -1);
-                          },
-                        ),
-                        titlesData: FlTitlesData(
-                          show: true,
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              getTitlesWidget: (v, _) => Text(
-                                monthly[v.toInt()].month,
-                                style: const TextStyle(
-                                    color: AppColors.slate400, fontSize: 10),
-                              ),
-                            ),
-                          ),
-                          leftTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false)),
-                          topTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false)),
-                          rightTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false)),
-                        ),
-                        gridData: FlGridData(
-                          show: true,
-                          horizontalInterval: 25000,
-                          getDrawingHorizontalLine: (_) => FlLine(
-                            color: AppColors.slate700.withValues(alpha: 0.4),
-                            strokeWidth: 0.5,
-                          ),
-                        ),
-                        borderData: FlBorderData(show: false),
-                        barGroups: monthly.asMap().entries.map((e) {
-                          final touched = e.key == _touchedIndex;
-                          return BarChartGroupData(
-                            x: e.key,
-                            barRods: [
-                              BarChartRodData(
-                                toY: e.value.amount,
-                                color: touched
-                                    ? AppColors.doctorAccent
-                                    : AppColors.doctorPrimary,
-                                width: 20,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ],
-                          );
-                        }).toList(),
-                      ),
-                    ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
 
-            // Breakdown
+            // Breakdown by consultation type
             DlCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Revenue Breakdown — March',
+                  Text('Consultation Breakdown — This Month',
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 16),
-                  ...breakdown.map((b) => _BreakdownRow(
-                        type: b['type'] as String,
-                        count: b['count'] as int,
-                        amount: b['amount'] as int,
-                        color: Color(b['color'] as int),
-                        total: 87500,
-                      )),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Tax summary
-            DlCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Tax Summary',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  _TaxRow('Gross Earnings (Q4)', '₹2,62,500'),
-                  _TaxRow('Platform Fee (10%)', '₹26,250'),
-                  _TaxRow('GST on Platform Fee (18%)', '₹4,725'),
-                  const Divider(color: AppColors.doctorBorder, height: 20),
-                  _TaxRow('Net Earnings', '₹2,31,525',
-                      bold: true, color: AppColors.doctorAccent),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'TDS applicable if earnings > ₹30k/quarter. Download Form 16A.',
-                    style: TextStyle(color: AppColors.slate500, fontSize: 11),
-                  ),
+                  if (breakdown.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Text('No completed consultations this month',
+                            style: TextStyle(
+                                color: AppColors.slate400, fontSize: 13)),
+                      ),
+                    )
+                  else
+                    ...breakdown.map((b) {
+                      final color = typeColors[b.type] ??
+                          AppColors.doctorPrimary;
+                      final label =
+                          typeLabels[b.type] ?? b.type;
+                      final pct = totalConsults > 0
+                          ? b.count / totalConsults
+                          : 0.0;
+                      return _BreakdownRow(
+                        type: label,
+                        count: b.count,
+                        pct: pct,
+                        color: color,
+                      );
+                    }),
                 ],
               ),
             ),
@@ -257,38 +349,47 @@ class _EarningsScreenState extends State<EarningsScreen> {
     );
   }
 
-  void _showWithdrawSheet(BuildContext context) {
+  void _showWithdrawSheet(BuildContext context, double balance) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.doctorCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Withdraw to Bank',
+            Text('Withdraw Earnings',
                 style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            const ListTile(
-              leading: Icon(Icons.account_balance, color: AppColors.doctorPrimary),
-              title: Text('HDFC Bank ****4521'),
-              subtitle: Text('Primary account', style: TextStyle(color: AppColors.slate400)),
-              trailing: Icon(Icons.check_circle, color: AppColors.doctorAccent),
+            const SizedBox(height: 8),
+            const Text(
+                'Withdrawal will be processed to your registered bank account.',
+                style:
+                    TextStyle(color: AppColors.slate500, fontSize: 13)),
+            const SizedBox(height: 20),
+            Text(
+              'Amount: ₹${balance.toStringAsFixed(0)}',
+              style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.doctorAccent),
             ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Withdrawal of ₹78,750 initiated. T+1 business day.')),
-                );
-              },
-              child: const Text('Confirm Withdrawal — ₹78,750'),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            'Withdrawal of ₹${balance.toStringAsFixed(0)} initiated. T+1 business day.')),
+                  );
+                },
+                child: Text('Confirm — ₹${balance.toStringAsFixed(0)}'),
+              ),
             ),
           ],
         ),
@@ -299,19 +400,18 @@ class _EarningsScreenState extends State<EarningsScreen> {
 
 class _BreakdownRow extends StatelessWidget {
   final String type;
-  final int count, amount, total;
+  final int count;
+  final double pct;
   final Color color;
   const _BreakdownRow({
     required this.type,
     required this.count,
-    required this.amount,
+    required this.pct,
     required this.color,
-    required this.total,
   });
 
   @override
   Widget build(BuildContext context) {
-    final pct = amount / total;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -319,15 +419,22 @@ class _BreakdownRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(width: 8, height: 8,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                      color: color, shape: BoxShape.circle)),
               const SizedBox(width: 8),
-              Expanded(child: Text(type, style: const TextStyle(fontSize: 12))),
-              Text('$count consults',
-                  style: const TextStyle(color: AppColors.slate400, fontSize: 11)),
+              Expanded(
+                  child: Text(type,
+                      style: const TextStyle(fontSize: 12))),
+              Text('$count consult${count == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                      color: AppColors.slate400, fontSize: 11)),
               const SizedBox(width: 8),
-              Text('₹${amount ~/ 1000}k',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+              Text('${(pct * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 6),
@@ -338,38 +445,6 @@ class _BreakdownRow extends StatelessWidget {
             minHeight: 4,
             borderRadius: BorderRadius.circular(2),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TaxRow extends StatelessWidget {
-  final String label, value;
-  final bool bold;
-  final Color? color;
-  const _TaxRow(this.label, this.value, {this.bold = false, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(label,
-                style: TextStyle(
-                  color: bold ? AppColors.textPrimary : AppColors.textMuted,
-                  fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
-                  fontSize: 13,
-                )),
-          ),
-          Text(value,
-              style: TextStyle(
-                color: color ?? AppColors.textPrimary,
-                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 13,
-              )),
         ],
       ),
     );

@@ -1,8 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../../core/mock/mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+
+class _InCallMsg {
+  final String text;
+  final bool isDoc;
+  final DateTime time;
+  const _InCallMsg({required this.text, required this.isDoc, required this.time});
+}
 
 class VideoCallScreen extends StatefulWidget {
   final String? patientName;
@@ -22,7 +28,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   Timer? _timer;
   final _notesCtrl = TextEditingController();
   final _chatCtrl = TextEditingController();
-  final List<MockChatMessage> _messages = List.from(MockData.chatMessages.take(2));
+  final List<_InCallMsg> _messages = [];
   String _quality = 'HD';
 
   @override
@@ -49,7 +55,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final patientName = widget.patientName ?? 'Riya Sharma';
+    final patientName = widget.patientName ?? 'Patient';
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -82,7 +88,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                             color: Colors.white54, size: 30),
                       )
                     : _VideoPlaceholder(
-                        name: 'Dr. ${MockData.doctor.name.split(' ').last}',
+                        name: 'You',
                         color: const Color(0xFF0F172A),
                         isFullScreen: false,
                         isCameraOff: _isCameraOff,
@@ -115,7 +121,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
                               fontSize: 16)),
-                      const Text('Fever & headache — video consult',
+                      const Text('Video consultation',
                           style: TextStyle(color: Colors.white60, fontSize: 11)),
                     ],
                   ),
@@ -176,9 +182,9 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                 onSend: () {
                   if (_chatCtrl.text.trim().isEmpty) return;
                   setState(() {
-                    _messages.add(MockChatMessage(
+                    _messages.add(_InCallMsg(
                       text: _chatCtrl.text.trim(),
-                      sender: 'doctor',
+                      isDoc: true,
                       time: DateTime.now(),
                     ));
                     _chatCtrl.clear();
@@ -505,7 +511,7 @@ class _NotesPanel extends StatelessWidget {
 }
 
 class _ChatPanel extends StatelessWidget {
-  final List<MockChatMessage> messages;
+  final List<_InCallMsg> messages;
   final TextEditingController controller;
   final VoidCallback onSend, onClose;
 
@@ -551,7 +557,7 @@ class _ChatPanel extends StatelessWidget {
                 itemCount: messages.length,
                 itemBuilder: (_, i) {
                   final msg = messages[i];
-                  final isDoc = msg.sender == 'doctor';
+                  final isDoc = msg.isDoc;
                   return Align(
                     alignment: isDoc ? Alignment.centerRight : Alignment.centerLeft,
                     child: Container(

@@ -16,7 +16,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<void> sendOtp({required String phone}) async {
     try {
-      await _client.auth.signInWithOtp(phone: phone);
+      await _client.auth.signInWithOtp(phone: phone, shouldCreateUser: true);
     } on AuthException catch (e) {
       throw AppAuthException(message: e.message);
     } catch (_) {
@@ -41,7 +41,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
 
       final data = await _client
-          .from('users')
+          .from('profiles')
           .select()
           .eq('id', userId)
           .single();
@@ -71,7 +71,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     if (userId == null) return null;
     try {
       final data = await _client
-          .from('users')
+          .from('profiles')
           .select()
           .eq('id', userId)
           .single();

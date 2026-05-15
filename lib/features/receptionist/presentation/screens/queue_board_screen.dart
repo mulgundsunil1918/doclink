@@ -1,28 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/dl_card.dart';
 
-class QueueBoardScreen extends StatefulWidget {
+class QueueBoardScreen extends ConsumerStatefulWidget {
   const QueueBoardScreen({super.key});
   @override
-  State<QueueBoardScreen> createState() => _QueueBoardScreenState();
+  ConsumerState<QueueBoardScreen> createState() => _QueueBoardScreenState();
 }
 
-class _QueueBoardScreenState extends State<QueueBoardScreen> {
+class _QueueBoardScreenState extends ConsumerState<QueueBoardScreen> {
   int _elapsed = 0;
   late Timer _timer;
-
-  final _queue = [
-    _QueueItem(token: 'T001', name: 'Riya Sharma', type: 'Video', status: 'in-progress', waitMins: 0),
-    _QueueItem(token: 'T002', name: 'Karan Patel', type: 'Audio', status: 'waiting', waitMins: 12),
-    _QueueItem(token: 'T003', name: 'Sunita Rao', type: 'Chat', status: 'waiting', waitMins: 24),
-    _QueueItem(token: 'T004', name: 'Amit Verma', type: 'In-Person', status: 'waiting', waitMins: 36),
-    _QueueItem(token: 'T005', name: 'Priya Nair', type: 'Video', status: 'waiting', waitMins: 48),
-    _QueueItem(token: 'T006', name: 'Rahul Das', type: 'Audio', status: 'no-show', waitMins: 60),
-    _QueueItem(token: 'T007', name: 'Deepa Menon', type: 'In-Person', status: 'done', waitMins: 0),
-  ];
 
   @override
   void initState() {
@@ -46,8 +38,17 @@ class _QueueBoardScreenState extends State<QueueBoardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final waiting = _queue.where((q) => q.status == 'waiting').length;
-    final done = _queue.where((q) => q.status == 'done').length;
+    final queueAsync = ref.watch(todayQueueProvider);
+    return queueAsync.when(
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, __) => _buildScreen(context, []),
+      data: (queue) => _buildScreen(context, queue),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context, List<AppAppointment> queue) {
+    final waiting = queue.where((q) => q.status == 'pending' || q.status == 'confirmed').length;
+    final done = queue.where((q) => q.status == 'completed').length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
@@ -58,18 +59,13 @@ class _QueueBoardScreenState extends State<QueueBoardScreen> {
             style: TextStyle(color: AppColors.slate800, fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: AppColors.slate600),
-            onPressed: () {},
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh_rounded, color: AppColors.patientPrimary),
-            onPressed: () {},
+            onPressed: () => ref.invalidate(todayQueueProvider),
           ),
         ],
       ),
       body: Column(
         children: [
-          // Stats strip
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -79,7 +75,7 @@ class _QueueBoardScreenState extends State<QueueBoardScreen> {
                 const SizedBox(width: 8),
                 _StatChip(label: 'Done Today', value: '$done', color: const Color(0xFF059669)),
                 const SizedBox(width: 8),
-                _StatChip(label: 'Avg Wait', value: '18 min', color: AppColors.patientPrimary),
+                _StatChip(label: 'Total', value: '${queue.length}', color: AppColors.patientPrimary),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -94,17 +90,35 @@ class _QueueBoardScreenState extends State<QueueBoardScreen> {
               ],
             ),
           ),
-          // Queue list
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: _queue.length,
-              itemBuilder: (ctx, i) => _QueueCard(
-                item: _queue[i],
-                onCall: () => _callNext(context, _queue[i]),
-                onNoShow: () => setState(() => _queue[i] = _queue[i].copyWith(status: 'no-show')),
-              ),
-            ),
+            child: queue.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.event_available_rounded, size: 56, color: AppColors.slate300),
+                        const SizedBox(height: 12),
+                        const Text('No appointments today',
+                            style: TextStyle(color: AppColors.slate500, fontWeight: FontWeight.w600, fontSize: 15)),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () => ref.invalidate(todayQueueProvider),
+                          child: const Text('Refresh'),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    itemCount: queue.length,
+                    itemBuilder: (ctx, i) => _QueueCard(
+                      item: queue[i],
+                      onStatusUpdate: (newStatus) async {
+                        await updateAppointmentStatus(queue[i].id, newStatus);
+                        ref.invalidate(todayQueueProvider);
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -112,21 +126,7 @@ class _QueueBoardScreenState extends State<QueueBoardScreen> {
         onPressed: () => _showAddToQueue(context),
         backgroundColor: AppColors.patientPrimary,
         icon: const Icon(Icons.add),
-        label: const Text('Add to Queue'),
-      ),
-    );
-  }
-
-  void _callNext(BuildContext context, _QueueItem item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Calling ${item.name} (${item.token})'),
-        backgroundColor: AppColors.patientPrimary,
-        action: SnackBarAction(
-          label: 'Undo',
-          textColor: Colors.white,
-          onPressed: () {},
-        ),
+        label: const Text('Add Walk-in'),
       ),
     );
   }
@@ -137,24 +137,20 @@ class _QueueBoardScreenState extends State<QueueBoardScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Add Walk-in to Queue',
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.slate800)),
-            const SizedBox(height: 20),
+            const Text('Add Walk-in',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.slate800)),
+            const SizedBox(height: 16),
             TextField(
               controller: nameCtrl,
               decoration: const InputDecoration(
-                labelText: 'Patient Name / Phone',
+                labelText: 'Patient Name',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.person_rounded),
               ),
@@ -166,7 +162,12 @@ class _QueueBoardScreenState extends State<QueueBoardScreen> {
                 onPressed: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Added to queue')),
+                    SnackBar(
+                      content: Text(nameCtrl.text.isNotEmpty
+                          ? '${nameCtrl.text} added to queue'
+                          : 'Walk-in added'),
+                      backgroundColor: AppColors.patientPrimary,
+                    ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -184,34 +185,33 @@ class _QueueBoardScreenState extends State<QueueBoardScreen> {
 }
 
 class _QueueCard extends StatelessWidget {
-  final _QueueItem item;
-  final VoidCallback onCall;
-  final VoidCallback onNoShow;
-  const _QueueCard({required this.item, required this.onCall, required this.onNoShow});
+  final AppAppointment item;
+  final Future<void> Function(String status) onStatusUpdate;
+  const _QueueCard({required this.item, required this.onStatusUpdate});
 
   Color get _statusColor {
     switch (item.status) {
-      case 'in-progress': return AppColors.patientPrimary;
-      case 'waiting': return const Color(0xFFD97706);
-      case 'done': return const Color(0xFF059669);
-      case 'no-show': return const Color(0xFFDC2626);
+      case 'ongoing': return AppColors.patientPrimary;
+      case 'pending': case 'confirmed': return const Color(0xFFD97706);
+      case 'completed': return const Color(0xFF059669);
       default: return AppColors.slate400;
     }
   }
 
   String get _statusLabel {
     switch (item.status) {
-      case 'in-progress': return 'In Progress';
-      case 'waiting': return 'Waiting';
-      case 'done': return 'Done';
-      case 'no-show': return 'No Show';
-      default: return '';
+      case 'ongoing': return 'In Progress';
+      case 'pending': return 'Waiting';
+      case 'confirmed': return 'Confirmed';
+      case 'completed': return 'Done';
+      case 'cancelled': return 'Cancelled';
+      default: return item.status;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDone = item.status == 'done' || item.status == 'no-show';
+    final isDone = item.status == 'completed' || item.status == 'cancelled';
     return Opacity(
       opacity: isDone ? 0.55 : 1.0,
       child: DlCard(
@@ -227,9 +227,10 @@ class _QueueCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
-                child: Text(item.token.substring(1),
-                    style: TextStyle(
-                        color: _statusColor, fontWeight: FontWeight.w800, fontSize: 12)),
+                child: Text(
+                  item.tokenNo != null ? '#${item.tokenNo}' : '?',
+                  style: TextStyle(color: _statusColor, fontWeight: FontWeight.w800, fontSize: 12),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -237,18 +238,17 @@ class _QueueCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, color: AppColors.slate800, fontSize: 14)),
+                  Text(item.patientName ?? 'Patient',
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.slate800, fontSize: 14)),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(item.type,
-                          style: const TextStyle(color: AppColors.slate500, fontSize: 12)),
-                      if (item.waitMins > 0) ...[
+                      Text(item.type.replaceAll('_', ' ').toUpperCase(),
+                          style: const TextStyle(color: AppColors.slate500, fontSize: 11)),
+                      if (item.formattedTime.isNotEmpty) ...[
                         const Text(' • ', style: TextStyle(color: AppColors.slate300)),
-                        Text('~${item.waitMins} min wait',
-                            style: const TextStyle(color: AppColors.slate500, fontSize: 12)),
+                        Text(item.formattedTime,
+                            style: const TextStyle(color: AppColors.slate500, fontSize: 11)),
                       ],
                     ],
                   ),
@@ -262,19 +262,17 @@ class _QueueCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(_statusLabel,
-                  style: TextStyle(
-                      color: _statusColor, fontSize: 11, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: _statusColor, fontSize: 11, fontWeight: FontWeight.w700)),
             ),
-            if (item.status == 'waiting') ...[
+            if (!isDone) ...[
               const SizedBox(width: 8),
               PopupMenuButton<String>(
-                onSelected: (v) {
-                  if (v == 'call') onCall();
-                  if (v == 'noshow') onNoShow();
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'call', child: Text('Call Patient')),
-                  PopupMenuItem(value: 'noshow', child: Text('Mark No-Show')),
+                onSelected: (v) => onStatusUpdate(v),
+                itemBuilder: (_) => [
+                  if (item.status != 'ongoing')
+                    const PopupMenuItem(value: 'ongoing', child: Text('Mark In Progress')),
+                  const PopupMenuItem(value: 'completed', child: Text('Mark Done')),
+                  const PopupMenuItem(value: 'cancelled', child: Text('Mark No-Show')),
                 ],
                 child: const Icon(Icons.more_vert_rounded, color: AppColors.slate400, size: 20),
               ),
@@ -302,32 +300,11 @@ class _StatChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value,
-              style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 14)),
+          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 14)),
           const SizedBox(width: 4),
           Text(label, style: TextStyle(color: color, fontSize: 11)),
         ],
       ),
     );
   }
-}
-
-class _QueueItem {
-  final String token, name, type, status;
-  final int waitMins;
-  const _QueueItem({
-    required this.token,
-    required this.name,
-    required this.type,
-    required this.status,
-    required this.waitMins,
-  });
-
-  _QueueItem copyWith({String? status}) => _QueueItem(
-        token: token,
-        name: name,
-        type: type,
-        status: status ?? this.status,
-        waitMins: waitMins,
-      );
 }

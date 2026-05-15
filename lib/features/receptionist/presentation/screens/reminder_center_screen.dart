@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/dl_card.dart';
 
-class ReminderCenterScreen extends StatefulWidget {
+// Track which appointment IDs had reminders sent this session
+final _sentReminderIdsProvider = StateProvider<Set<String>>((ref) => {});
+
+class ReminderCenterScreen extends ConsumerStatefulWidget {
   const ReminderCenterScreen({super.key});
+
   @override
-  State<ReminderCenterScreen> createState() => _ReminderCenterScreenState();
+  ConsumerState<ReminderCenterScreen> createState() =>
+      _ReminderCenterScreenState();
 }
 
-class _ReminderCenterScreenState extends State<ReminderCenterScreen>
+class _ReminderCenterScreenState extends ConsumerState<ReminderCenterScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
@@ -17,6 +25,11 @@ class _ReminderCenterScreenState extends State<ReminderCenterScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -25,203 +38,241 @@ class _ReminderCenterScreenState extends State<ReminderCenterScreen>
     super.dispose();
   }
 
-  final _reminders = [
-    _Reminder(
-      patient: 'Riya Sharma',
-      phone: '+91 98765 43210',
-      type: 'Appointment',
-      message: 'Reminder: Your video consultation is tomorrow at 10:00 AM',
-      channel: 'SMS+WhatsApp',
-      scheduledAt: 'Today, 9:00 PM',
-      status: 'pending',
-    ),
-    _Reminder(
-      patient: 'Karan Patel',
-      phone: '+91 87654 32109',
-      type: 'Follow-up',
-      message: 'Dr. Mehta recommends a follow-up after 2 weeks',
-      channel: 'WhatsApp',
-      scheduledAt: 'Today, 6:00 PM',
-      status: 'sent',
-    ),
-    _Reminder(
-      patient: 'Sunita Rao',
-      phone: '+91 76543 21098',
-      type: 'Lab Report',
-      message: 'Please upload your latest blood report before the appointment',
-      channel: 'SMS',
-      scheduledAt: 'Yesterday, 4:00 PM',
-      status: 'sent',
-    ),
-    _Reminder(
-      patient: 'Amit Verma',
-      phone: '+91 65432 10987',
-      type: 'Appointment',
-      message: 'Your appointment is confirmed for tomorrow 2:30 PM',
-      channel: 'SMS+WhatsApp',
-      scheduledAt: 'Tomorrow, 9:00 AM',
-      status: 'scheduled',
-    ),
-    _Reminder(
-      patient: 'Deepa Menon',
-      phone: '+91 54321 09876',
-      type: 'No-Show',
-      message: 'We missed you today. Please reschedule your appointment.',
-      channel: 'WhatsApp',
-      scheduledAt: 'Today, 3:00 PM',
-      status: 'failed',
-    ),
-  ];
+  Future<void> _sendReminder(AppAppointment apt) async {
+    try {
+      final db = Supabase.instance.client;
+      final msg = 'Reminder: You have a ${_typeLabel(apt.type)} appointment'
+          '${apt.formattedDate.isNotEmpty ? ' on ${apt.formattedDate}' : ' today'}'
+          '${apt.formattedTime.isNotEmpty ? ' at ${apt.formattedTime}' : ''}. '
+          'Please be ready on time.';
+
+      await db.from('notifications').insert({
+        'user_id': apt.patientId,
+        'title': 'Appointment Reminder',
+        'body': msg,
+        'type': 'appointment_reminder',
+      });
+
+      ref.read(_sentReminderIdsProvider.notifier).update((s) => {...s, apt.id});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Reminder sent to ${apt.patientName ?? 'patient'}'),
+            backgroundColor: const Color(0xFF059669),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _sendBroadcast(String message, BuildContext ctx) async {
+    final apts = ref.read(todayQueueProvider).valueOrNull ?? [];
+    if (apts.isEmpty) return;
+    Navigator.pop(ctx);
+    try {
+      final db = Supabase.instance.client;
+      final inserts = apts
+          .map((a) => {
+                'user_id': a.patientId,
+                'title': 'Clinic Announcement',
+                'body': message,
+                'type': 'broadcast',
+              })
+          .toList();
+      await db.from('notifications').insert(inserts);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Broadcast sent to ${apts.length} patients'),
+            backgroundColor: const Color(0xFF059669),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Broadcast failed: $e'),
+              behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final pending = _reminders.where((r) => r.status == 'pending').length;
-    final sent = _reminders.where((r) => r.status == 'sent').length;
+    final queueAsync = ref.watch(todayQueueProvider);
+    final sentIds = ref.watch(_sentReminderIdsProvider);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F4FF),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Reminder Center',
-            style: TextStyle(color: AppColors.slate800, fontWeight: FontWeight.w700)),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.patientPrimary,
-          unselectedLabelColor: AppColors.slate400,
-          indicatorColor: AppColors.patientPrimary,
-          tabs: [
-            Tab(text: 'All (${_reminders.length})'),
-            Tab(text: 'Pending ($pending)'),
-            Tab(text: 'Sent ($sent)'),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          // Stats
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                _MiniStat(label: 'Sent Today', value: '$sent', color: const Color(0xFF059669)),
-                const SizedBox(width: 8),
-                _MiniStat(label: 'Pending', value: '$pending', color: const Color(0xFFD97706)),
-                const SizedBox(width: 8),
-                _MiniStat(
-                  label: 'Failed',
-                  value: '${_reminders.where((r) => r.status == 'failed').length}',
-                  color: const Color(0xFFDC2626),
-                ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: () => _showBroadcastSheet(context),
-                  icon: const Icon(Icons.broadcast_on_personal_rounded, size: 16),
-                  label: const Text('Broadcast', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.patientPrimary,
-                    minimumSize: const Size(0, 32),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: TabBarView(
+    return queueAsync.when(
+      loading: () => const Scaffold(
+          body: Center(child: CircularProgressIndicator())),
+      error: (_, __) => const Scaffold(
+          body: Center(child: Text('Failed to load appointments'))),
+      data: (allApts) {
+        // Filter: only pending/confirmed are relevant for reminders
+        final remindable = allApts
+            .where((a) => a.status == 'pending' || a.status == 'confirmed')
+            .toList();
+
+        final pending =
+            remindable.where((a) => !sentIds.contains(a.id)).toList();
+        final sent = remindable.where((a) => sentIds.contains(a.id)).toList();
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF0F4FF),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            title: const Text('Reminder Center',
+                style: TextStyle(
+                    color: AppColors.slate800, fontWeight: FontWeight.w700)),
+            bottom: TabBar(
               controller: _tabController,
-              children: [
-                _ReminderList(reminders: _reminders, onSend: _sendReminder),
-                _ReminderList(
-                  reminders: _reminders.where((r) => r.status == 'pending').toList(),
-                  onSend: _sendReminder,
-                ),
-                _ReminderList(
-                  reminders: _reminders.where((r) => r.status == 'sent').toList(),
-                  onSend: _sendReminder,
-                ),
+              labelColor: AppColors.patientPrimary,
+              unselectedLabelColor: AppColors.slate400,
+              indicatorColor: AppColors.patientPrimary,
+              tabs: [
+                Tab(text: 'All (${remindable.length})'),
+                Tab(text: 'Pending (${pending.length})'),
+                Tab(text: 'Sent (${sent.length})'),
               ],
             ),
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateReminderSheet(context),
-        backgroundColor: AppColors.patientPrimary,
-        icon: const Icon(Icons.add_alert_rounded),
-        label: const Text('New Reminder'),
-      ),
-    );
-  }
-
-  void _sendReminder(BuildContext context, _Reminder reminder) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Reminder sent to ${reminder.patient} via ${reminder.channel}'),
-        backgroundColor: const Color(0xFF059669),
-      ),
+          body: Column(
+            children: [
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    _MiniStat(
+                      label: 'Sent',
+                      value: '${sent.length}',
+                      color: const Color(0xFF059669),
+                    ),
+                    const SizedBox(width: 8),
+                    _MiniStat(
+                      label: 'Pending',
+                      value: '${pending.length}',
+                      color: const Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 8),
+                    _MiniStat(
+                      label: 'Total',
+                      value: '${remindable.length}',
+                      color: AppColors.slate600,
+                    ),
+                    const Spacer(),
+                    ElevatedButton.icon(
+                      onPressed: () => _showBroadcastSheet(context),
+                      icon: const Icon(
+                          Icons.broadcast_on_personal_rounded,
+                          size: 16),
+                      label: const Text('Broadcast',
+                          style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.patientPrimary,
+                        minimumSize: const Size(0, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _ReminderList(
+                        appointments: remindable,
+                        sentIds: sentIds,
+                        onSend: _sendReminder),
+                    _ReminderList(
+                        appointments: pending,
+                        sentIds: sentIds,
+                        onSend: _sendReminder),
+                    _ReminderList(
+                        appointments: sent,
+                        sentIds: sentIds,
+                        onSend: _sendReminder),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => _showBroadcastSheet(context),
+            backgroundColor: AppColors.patientPrimary,
+            icon: const Icon(Icons.add_alert_rounded),
+            label: const Text('Broadcast'),
+          ),
+        );
+      },
     );
   }
 
   void _showBroadcastSheet(BuildContext context) {
+    final msgCtrl = TextEditingController();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(
-            24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+            24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Broadcast Message',
                 style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.slate800)),
-            const SizedBox(height: 12),
-            const Text('Send to all patients with upcoming appointments',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.slate800)),
+            const SizedBox(height: 8),
+            const Text('Sends to all patients with appointments today',
                 style: TextStyle(color: AppColors.slate500, fontSize: 13)),
             const SizedBox(height: 20),
-            const TextField(
+            TextField(
+              controller: msgCtrl,
               maxLines: 3,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Message',
                 hintText: 'Enter broadcast message...',
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
-            const Text('Send via:',
-                style: TextStyle(color: AppColors.slate700, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: ['SMS', 'WhatsApp', 'Push'].map((c) => FilterChip(
-                    label: Text(c),
-                    selected: c != 'Push',
-                    onSelected: (_) {},
-                    selectedColor: AppColors.patientPrimary.withValues(alpha: 0.15),
-                  )).toList(),
-            ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Broadcast sent to 5 patients')),
-                  );
+                  if (msgCtrl.text.trim().isNotEmpty) {
+                    _sendBroadcast(msgCtrl.text.trim(), ctx);
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.patientPrimary,
                   minimumSize: const Size(double.infinity, 48),
                 ),
-                child: const Text('Send to 5 Patients'),
+                child: Text(
+                    'Send to ${ref.read(todayQueueProvider).valueOrNull?.length ?? 0} Patients'),
               ),
             ),
           ],
@@ -229,120 +280,88 @@ class _ReminderCenterScreenState extends State<ReminderCenterScreen>
       ),
     );
   }
+}
 
-  void _showCreateReminderSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Create Reminder',
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.slate800)),
-            const SizedBox(height: 20),
-            const TextField(
-              decoration: InputDecoration(
-                labelText: 'Patient Name / Phone',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person_rounded),
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: 'Appointment',
-              decoration: const InputDecoration(
-                labelText: 'Reminder Type',
-                border: OutlineInputBorder(),
-              ),
-              items: ['Appointment', 'Follow-up', 'Lab Report', 'Medication', 'No-Show']
-                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                  .toList(),
-              onChanged: (_) {},
-            ),
-            const SizedBox(height: 12),
-            const TextField(
-              maxLines: 2,
-              decoration: InputDecoration(
-                labelText: 'Message',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Reminder scheduled')),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.patientPrimary,
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: const Text('Schedule Reminder'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+String _typeLabel(String type) {
+  switch (type) {
+    case 'video':
+      return 'video';
+    case 'audio':
+      return 'audio';
+    case 'chat':
+      return 'chat';
+    case 'in_person':
+      return 'in-person';
+    default:
+      return type;
   }
 }
 
 class _ReminderList extends StatelessWidget {
-  final List<_Reminder> reminders;
-  final void Function(BuildContext, _Reminder) onSend;
-  const _ReminderList({required this.reminders, required this.onSend});
+  final List<AppAppointment> appointments;
+  final Set<String> sentIds;
+  final Future<void> Function(AppAppointment) onSend; // ignore: prefer_function_declarations_over_variables
+  const _ReminderList({
+    required this.appointments,
+    required this.sentIds,
+    required this.onSend,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (reminders.isEmpty) {
-      return const Center(child: Text('No reminders', style: TextStyle(color: AppColors.slate400)));
+    if (appointments.isEmpty) {
+      return const Center(
+          child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.notifications_off_rounded,
+              size: 48, color: AppColors.slate200),
+          SizedBox(height: 12),
+          Text('No appointments to remind',
+              style: TextStyle(color: AppColors.slate400)),
+        ],
+      ));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(AppSpacing.md),
-      itemCount: reminders.length,
-      itemBuilder: (ctx, i) => _ReminderCard(
-        reminder: reminders[i],
-        onSend: () => onSend(context, reminders[i]),
-      ),
+      itemCount: appointments.length,
+      itemBuilder: (ctx, i) {
+        final apt = appointments[i];
+        return _ReminderCard(
+          appointment: apt,
+          sent: sentIds.contains(apt.id),
+          onSend: () => onSend(apt),
+        );
+      },
     );
   }
 }
 
-class _ReminderCard extends StatelessWidget {
-  final _Reminder reminder;
-  final VoidCallback onSend;
-  const _ReminderCard({required this.reminder, required this.onSend});
+class _ReminderCard extends StatefulWidget {
+  final AppAppointment appointment;
+  final bool sent;
+  final Future<void> Function() onSend;
+  const _ReminderCard({
+    required this.appointment,
+    required this.sent,
+    required this.onSend,
+  });
 
-  Color get _statusColor {
-    switch (reminder.status) {
-      case 'sent': return const Color(0xFF059669);
-      case 'pending': return const Color(0xFFD97706);
-      case 'scheduled': return AppColors.patientPrimary;
-      case 'failed': return const Color(0xFFDC2626);
-      default: return AppColors.slate400;
-    }
-  }
+  @override
+  State<_ReminderCard> createState() => _ReminderCardState();
+}
 
-  IconData get _channelIcon {
-    if (reminder.channel.contains('WhatsApp')) return Icons.chat_rounded;
-    return Icons.sms_rounded;
-  }
+class _ReminderCardState extends State<_ReminderCard> {
+  bool _sending = false;
 
   @override
   Widget build(BuildContext context) {
+    final apt = widget.appointment;
+    final name = apt.patientName ?? 'Patient';
+    final initials =
+        name.split(' ').where((p) => p.isNotEmpty).take(2).map((p) => p[0]).join().toUpperCase();
+    final typeLabel = _typeLabel(apt.type);
+
     return DlCard(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -351,69 +370,110 @@ class _ReminderCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor:
+                    AppColors.patientPrimary.withValues(alpha: 0.1),
+                child: Text(initials,
+                    style: const TextStyle(
+                        color: AppColors.patientPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13)),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(reminder.patient,
+                    Text(name,
                         style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             color: AppColors.slate800,
                             fontSize: 14)),
-                    Text(reminder.phone,
-                        style: const TextStyle(color: AppColors.slate500, fontSize: 12)),
+                    Text(
+                        '${typeLabel[0].toUpperCase()}${typeLabel.substring(1)} • ${apt.formattedDate} ${apt.formattedTime}',
+                        style: const TextStyle(
+                            color: AppColors.slate500, fontSize: 12)),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+              if (apt.tokenNo != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.patientPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('Token #${apt.tokenNo}',
+                      style: const TextStyle(
+                          color: AppColors.patientPrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
                 ),
-                child: Text(
-                  reminder.status[0].toUpperCase() + reminder.status.substring(1),
-                  style: TextStyle(
-                      color: _statusColor, fontSize: 11, fontWeight: FontWeight.w700),
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: AppColors.slate50,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(reminder.message,
-                style: const TextStyle(color: AppColors.slate700, fontSize: 13)),
+            child: Text(
+              'Reminder: Your $typeLabel appointment'
+              '${apt.formattedDate.isNotEmpty ? ' on ${apt.formattedDate}' : ' today'}'
+              '${apt.formattedTime.isNotEmpty ? ' at ${apt.formattedTime}' : ''}. '
+              'Please be ready on time.',
+              style: const TextStyle(color: AppColors.slate700, fontSize: 13),
+            ),
           ),
           const SizedBox(height: 10),
           Row(
             children: [
-              Icon(_channelIcon, size: 14, color: AppColors.slate400),
-              const SizedBox(width: 4),
-              Text(reminder.channel,
-                  style: const TextStyle(color: AppColors.slate500, fontSize: 11)),
-              const SizedBox(width: 12),
-              const Icon(Icons.schedule_rounded, size: 14, color: AppColors.slate400),
-              const SizedBox(width: 4),
-              Text(reminder.scheduledAt,
-                  style: const TextStyle(color: AppColors.slate500, fontSize: 11)),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: widget.sent
+                      ? const Color(0xFF059669).withValues(alpha: 0.1)
+                      : const Color(0xFFD97706).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  widget.sent ? 'Sent' : 'Pending',
+                  style: TextStyle(
+                    color: widget.sent
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFD97706),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
               const Spacer(),
-              if (reminder.status == 'pending' || reminder.status == 'failed')
+              if (!widget.sent)
                 TextButton(
-                  onPressed: onSend,
+                  onPressed: _sending
+                      ? null
+                      : () async {
+                          setState(() => _sending = true);
+                          await widget.onSend();
+                          if (mounted) setState(() => _sending = false);
+                        },
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.patientPrimary,
                     minimumSize: Size.zero,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
                   ),
-                  child: Text(
-                    reminder.status == 'failed' ? 'Retry' : 'Send Now',
-                    style: const TextStyle(fontSize: 12),
-                  ),
+                  child: _sending
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Send Now',
+                          style: TextStyle(fontSize: 12)),
                 ),
             ],
           ),
@@ -426,28 +486,20 @@ class _ReminderCard extends StatelessWidget {
 class _MiniStat extends StatelessWidget {
   final String label, value;
   final Color color;
-  const _MiniStat({required this.label, required this.value, required this.color});
+  const _MiniStat(
+      {required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16)),
-        Text(label, style: const TextStyle(color: AppColors.slate500, fontSize: 10)),
+        Text(value,
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.w800, fontSize: 16)),
+        Text(label,
+            style:
+                const TextStyle(color: AppColors.slate500, fontSize: 10)),
       ],
     );
   }
-}
-
-class _Reminder {
-  final String patient, phone, type, message, channel, scheduledAt, status;
-  const _Reminder({
-    required this.patient,
-    required this.phone,
-    required this.type,
-    required this.message,
-    required this.channel,
-    required this.scheduledAt,
-    required this.status,
-  });
 }

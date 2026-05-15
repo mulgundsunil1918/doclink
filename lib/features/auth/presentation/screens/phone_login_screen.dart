@@ -118,6 +118,19 @@ class _PhoneLoginScreenState extends ConsumerState<PhoneLoginScreen> {
                 ),
                 const Spacer(),
                 Center(
+                  child: TextButton(
+                    onPressed: () => context.go('/'),
+                    child: Text(
+                      'Try Demo Mode',
+                      style: TextStyle(
+                        color: AppColors.slate400,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
                   child: Text(
                     'By continuing you agree to our Terms & Privacy Policy',
                     textAlign: TextAlign.center,

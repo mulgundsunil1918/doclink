@@ -2,54 +2,41 @@ import '../../domain/entities/user_entity.dart';
 
 class UserModel {
   final String id;
-  final String phone;
-  final String? email;
+  final String? phone;
   final String role;
-  final String fullName;
-  final String? profilePhotoUrl;
-  final bool isVerified;
-  final String kycStatus;
+  final String name;
+  final String? avatarUrl;
   final String createdAt;
 
   const UserModel({
     required this.id,
-    required this.phone,
-    this.email,
+    this.phone,
     required this.role,
-    required this.fullName,
-    this.profilePhotoUrl,
-    this.isVerified = false,
-    this.kycStatus = 'pending',
+    required this.name,
+    this.avatarUrl,
     required this.createdAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
         id: json['id'] as String,
-        phone: json['phone'] as String,
-        email: json['email'] as String?,
+        phone: json['phone'] as String?,
         role: json['role'] as String? ?? 'patient',
-        fullName: json['full_name'] as String? ?? '',
-        profilePhotoUrl: json['profile_photo_url'] as String?,
-        isVerified: json['is_verified'] as bool? ?? false,
-        kycStatus: json['kyc_status'] as String? ?? 'pending',
-        createdAt: json['created_at'] as String,
+        name: json['name'] as String? ?? '',
+        avatarUrl: json['avatar_url'] as String?,
+        createdAt: json['created_at'] as String? ?? DateTime.now().toIso8601String(),
       );
 
   UserEntity toEntity() => UserEntity(
         id: id,
-        phone: phone,
-        email: email,
+        phone: phone ?? '',
         role: _parseRole(role),
-        fullName: fullName,
-        profilePhotoUrl: profilePhotoUrl,
-        isVerified: isVerified,
-        isKycApproved: kycStatus == 'approved',
-        createdAt: DateTime.parse(createdAt),
+        fullName: name,
+        profilePhotoUrl: avatarUrl,
+        createdAt: DateTime.tryParse(createdAt) ?? DateTime.now(),
       );
 
   static UserRole _parseRole(String role) => switch (role) {
         'doctor' => UserRole.doctor,
-        'patient' => UserRole.patient,
         'receptionist' => UserRole.receptionist,
         'admin' => UserRole.admin,
         _ => UserRole.patient,

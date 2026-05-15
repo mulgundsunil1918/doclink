@@ -1,8 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/mock/mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+
+const _kWeekSlots = {
+  'Mon': ['09:00','09:30','10:00','10:30','11:00','14:00','14:30','15:00','16:00','16:30'],
+  'Tue': ['09:00','09:30','10:00','11:00','14:00','15:00','15:30','16:00'],
+  'Wed': ['09:30','10:00','10:30','11:00','14:30','15:00','16:00','17:00'],
+  'Thu': ['09:00','10:00','11:00','14:00','15:00','16:30','17:00'],
+  'Fri': ['09:00','09:30','10:00','10:30','14:00','14:30','15:00'],
+  'Sat': ['09:00','09:30','10:00','10:30','11:00'],
+  'Sun': <String>[],
+};
+
+const _kBookedSlots = {
+  'Mon': ['09:00','10:30','14:30'],
+  'Tue': ['09:30','15:00'],
+  'Wed': ['10:00','14:30'],
+  'Thu': ['09:00','15:00'],
+  'Fri': ['09:30','14:00'],
+  'Sat': ['09:00'],
+  'Sun': <String>[],
+};
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -16,8 +35,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final slots = MockData.weekSlots[_selectedDay] ?? [];
-    final booked = MockData.bookedSlots[_selectedDay] ?? [];
+    final slots = _kWeekSlots[_selectedDay] ?? [];
+    final booked = _kBookedSlots[_selectedDay] ?? [];
 
     return Scaffold(
       appBar: AppBar(

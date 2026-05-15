@@ -1,28 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/mock/mock_data.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_card.dart';
 
-class PatientHomeScreen extends StatelessWidget {
+class PatientHomeScreen extends ConsumerWidget {
   final void Function(int) onNavigate;
   const PatientHomeScreen({super.key, required this.onNavigate});
 
   @override
-  Widget build(BuildContext context) {
-    final patient = MockData.patient;
-    final apts = MockData.appointments;
-    final prescriptions = MockData.prescriptions;
-    final upcoming = apts.where((a) => a.status == 'confirmed' || a.status == 'pending').toList();
-    final ongoing = apts.where((a) => a.status == 'ongoing').toList();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final patientAsync = ref.watch(currentPatientProvider);
+    final aptsAsync = ref.watch(patientAppointmentsProvider);
+    final rxAsync = ref.watch(patientPrescriptionsProvider);
+    final familyAsync = ref.watch(familyMembersProvider);
     final hour = DateTime.now().hour;
-    final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    final greeting =
+        hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+    final patient = patientAsync.valueOrNull;
+    final apts = aptsAsync.valueOrNull ?? [];
+    final prescriptions = rxAsync.valueOrNull ?? [];
+    final family = familyAsync.valueOrNull ?? [];
+
+    final upcoming =
+        apts.where((a) => a.status == 'confirmed' || a.status == 'pending').toList();
+    final ongoing = apts.where((a) => a.status == 'ongoing').toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
       body: CustomScrollView(
         slivers: [
-          // ── Hero header ────────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Container(
               decoration: const BoxDecoration(
@@ -36,7 +45,6 @@ class PatientHomeScreen extends StatelessWidget {
                 bottom: false,
                 child: Column(
                   children: [
-                    // Top row
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 16, 12, 20),
                       child: Row(
@@ -52,15 +60,13 @@ class PatientHomeScreen extends StatelessWidget {
                                     color: Colors.white.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: Text(
-                                    '$greeting 👋',
-                                    style: const TextStyle(
-                                        color: Colors.white70, fontSize: 11),
-                                  ),
+                                  child: Text('$greeting 👋',
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 11)),
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  patient.name,
+                                  patient?.name ?? 'Welcome',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 26,
@@ -69,18 +75,21 @@ class PatientHomeScreen extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.person_rounded,
-                                        color: Colors.white54, size: 12),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${patient.age} yrs  ·  ${patient.gender}',
-                                      style: const TextStyle(
-                                          color: Colors.white54, fontSize: 12),
-                                    ),
-                                  ],
-                                ),
+                                Row(children: [
+                                  const Icon(Icons.person_rounded,
+                                      color: Colors.white54, size: 12),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    [
+                                      if (patient?.age != null)
+                                        '${patient!.age} yrs',
+                                      if (patient?.gender != null)
+                                        patient!.gender!,
+                                    ].join('  ·  '),
+                                    style: const TextStyle(
+                                        color: Colors.white54, fontSize: 12),
+                                  ),
+                                ]),
                               ],
                             ),
                           ),
@@ -96,9 +105,9 @@ class PatientHomeScreen extends StatelessWidget {
                                     color: Colors.white.withValues(alpha: 0.4),
                                     width: 1.5),
                               ),
-                              child: const Center(
-                                child: Text('RS',
-                                    style: TextStyle(
+                              child: Center(
+                                child: Text(patient?.initials ?? 'P',
+                                    style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w800,
                                         fontSize: 15)),
@@ -108,13 +117,11 @@ class PatientHomeScreen extends StatelessWidget {
                           IconButton(
                             icon: const Icon(Icons.notifications_outlined,
                                 color: Colors.white70, size: 22),
-                            onPressed: () {},
+                            onPressed: () => _showNotifications(context, ref),
                           ),
                         ],
                       ),
                     ),
-
-                    // ── 3 compact metric tiles ─────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                       child: Row(
@@ -137,7 +144,7 @@ class PatientHomeScreen extends StatelessWidget {
                           ),
                           _MetricDivider(),
                           _MetricTile(
-                            value: '${MockData.familyMembers.length}',
+                            value: '${family.length}',
                             label: 'Family',
                             sub: 'members',
                             icon: Icons.people_rounded,
@@ -153,12 +160,11 @@ class PatientHomeScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          // ── Status chips strip ─────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Container(
               color: AppColors.surface,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
                   _StatusChip(
@@ -180,7 +186,7 @@ class PatientHomeScreen extends StatelessWidget {
                       icon: Icons.folder_rounded),
                   const SizedBox(width: 8),
                   _StatusChip(
-                      value: '${MockData.familyMembers.length}',
+                      value: '${family.length}',
                       label: 'Family',
                       color: const Color(0xFFD97706),
                       icon: Icons.people_rounded),
@@ -188,28 +194,22 @@ class PatientHomeScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          // ── Body ───────────────────────────────────────────────────────────
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-
-                // Active consultation banner
                 if (ongoing.isNotEmpty) ...[
                   _OngoingBanner(apt: ongoing.first),
                   const SizedBox(height: 16),
                 ],
-
-                // Quick actions
-                _SectionLabel('Quick Actions'),
+                const _SectionLabel('Quick Actions'),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _ActionBtn(
-                        icon: Icons.qr_code_scanner_rounded,
-                        label: 'Scan & Book',
+                        icon: Icons.search_rounded,
+                        label: 'Book',
                         color: AppColors.primary,
                         onTap: () => context.push('/patient/book')),
                     _ActionBtn(
@@ -231,16 +231,19 @@ class PatientHomeScreen extends StatelessWidget {
                         icon: Icons.chat_rounded,
                         label: 'Chat',
                         color: AppColors.patientSecondary,
-                        onTap: () => context.push('/patient/chat')),
+                        onTap: () => upcoming.isNotEmpty
+                            ? context.push('/patient/chat',
+                                extra: upcoming.first.id)
+                            : ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'Book an appointment first to start a chat')))),
                   ],
                 ),
-
                 const SizedBox(height: 24),
-
-                // Upcoming appointments
                 Row(
                   children: [
-                    _SectionLabel('Upcoming Appointments'),
+                    const _SectionLabel('Upcoming Appointments'),
                     const Spacer(),
                     TextButton(
                       onPressed: () => onNavigate(1),
@@ -262,17 +265,14 @@ class PatientHomeScreen extends StatelessWidget {
                   _EmptyCard(
                     icon: Icons.event_available_rounded,
                     message: 'No upcoming appointments',
-                    sub: 'Scan a doctor\'s QR code to book instantly',
+                    sub: 'Tap Book to find a doctor',
                   )
                 else
                   ...upcoming.take(2).map((a) => _UpcomingCard(apt: a)),
-
                 const SizedBox(height: 24),
-
-                // Recent prescription
                 Row(
                   children: [
-                    _SectionLabel('Recent Prescription'),
+                    const _SectionLabel('Recent Prescription'),
                     const Spacer(),
                     TextButton(
                       onPressed: () => onNavigate(2),
@@ -298,13 +298,10 @@ class PatientHomeScreen extends StatelessWidget {
                   )
                 else
                   _PrescriptionCard(rx: prescriptions.first),
-
                 const SizedBox(height: 24),
-
-                // Family section
                 Row(
                   children: [
-                    _SectionLabel('Family Profiles'),
+                    const _SectionLabel('Family Profiles'),
                     const Spacer(),
                     TextButton(
                       onPressed: () => onNavigate(3),
@@ -322,14 +319,21 @@ class PatientHomeScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: MockData.familyMembers
-                        .map((m) => _FamilyChip(member: m))
-                        .toList(),
+                if (family.isEmpty)
+                  _EmptyCard(
+                    icon: Icons.people_rounded,
+                    message: 'No family members added',
+                    sub: 'Add family members to book for them',
+                  )
+                else
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: family
+                          .map((m) => _FamilyChip(member: m))
+                          .toList(),
+                    ),
                   ),
-                ),
               ]),
             ),
           ),
@@ -337,9 +341,13 @@ class PatientHomeScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-// ── Header widgets ─────────────────────────────────────────────────────────────
+  void _showNotifications(BuildContext context, WidgetRef ref) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No new notifications')),
+    );
+  }
+}
 
 class _MetricTile extends StatelessWidget {
   final String value, label, sub;
@@ -363,14 +371,12 @@ class _MetricTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: iconColor, size: 13),
-                const SizedBox(width: 4),
-                Text(label,
-                    style: const TextStyle(color: Colors.white60, fontSize: 11)),
-              ],
-            ),
+            Row(children: [
+              Icon(icon, color: iconColor, size: 13),
+              const SizedBox(width: 4),
+              Text(label,
+                  style: const TextStyle(color: Colors.white60, fontSize: 11)),
+            ]),
             const SizedBox(height: 4),
             Text(value,
                 style: TextStyle(
@@ -389,17 +395,13 @@ class _MetricTile extends StatelessWidget {
 
 class _MetricDivider extends StatelessWidget {
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 48,
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      color: Colors.white.withValues(alpha: 0.15),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        width: 1,
+        height: 48,
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        color: Colors.white.withValues(alpha: 0.15),
+      );
 }
-
-// ── Status strip widgets ───────────────────────────────────────────────────────
 
 class _StatusChip extends StatelessWidget {
   final String value, label;
@@ -445,20 +447,16 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-// ── Body widgets ──────────────────────────────────────────────────────────────
-
 class _SectionLabel extends StatelessWidget {
   final String text;
   const _SectionLabel(this.text);
 
   @override
-  Widget build(BuildContext context) {
-    return Text(text,
-        style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w700));
-  }
+  Widget build(BuildContext context) => Text(text,
+      style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w700));
 }
 
 class _ActionBtn extends StatelessWidget {
@@ -491,9 +489,7 @@ class _ActionBtn extends StatelessWidget {
           const SizedBox(height: 6),
           Text(label,
               style: TextStyle(
-                  color: color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600)),
+                  color: color, fontSize: 11, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -501,13 +497,19 @@ class _ActionBtn extends StatelessWidget {
 }
 
 class _OngoingBanner extends StatelessWidget {
-  final MockAppointment apt;
+  final AppAppointment apt;
   const _OngoingBanner({required this.apt});
 
   @override
   Widget build(BuildContext context) {
-    return GradientCard(
-      colors: const [Color(0xFF059669), Color(0xFF10B981)],
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF059669), Color(0xFF10B981)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           const Icon(Icons.videocam_rounded, color: Colors.white, size: 28),
@@ -518,7 +520,7 @@ class _OngoingBanner extends StatelessWidget {
               children: [
                 const Text('Consultation in progress',
                     style: TextStyle(color: Colors.white70, fontSize: 12)),
-                Text(apt.patientName.isEmpty ? 'Dr. Arjun Mehta' : 'Dr. Arjun Mehta',
+                Text(apt.doctorName ?? 'Your Doctor',
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -527,9 +529,16 @@ class _OngoingBanner extends StatelessWidget {
             ),
           ),
           GestureDetector(
-            onTap: () => context.push('/patient/video-call'),
+            onTap: () {
+              if (apt.type == 'chat') {
+                context.push('/patient/chat', extra: apt.id);
+              } else {
+                context.push('/patient/video-call');
+              }
+            },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.white24,
                 borderRadius: BorderRadius.circular(20),
@@ -548,7 +557,7 @@ class _OngoingBanner extends StatelessWidget {
 }
 
 class _UpcomingCard extends StatelessWidget {
-  final MockAppointment apt;
+  final AppAppointment apt;
   const _UpcomingCard({required this.apt});
 
   static const _typeColors = {
@@ -570,8 +579,10 @@ class _UpcomingCard extends StatelessWidget {
   };
 
   Color get _typeColor => _typeColors[apt.type] ?? AppColors.textMuted;
-  IconData get _typeIcon => _typeIcons[apt.type] ?? Icons.medical_services_rounded;
-  Color get _statusColor => _statusColors[apt.status] ?? AppColors.textMuted;
+  IconData get _typeIcon =>
+      _typeIcons[apt.type] ?? Icons.medical_services_rounded;
+  Color get _statusColor =>
+      _statusColors[apt.status] ?? AppColors.textMuted;
 
   @override
   Widget build(BuildContext context) {
@@ -583,10 +594,7 @@ class _UpcomingCard extends StatelessWidget {
         border: Border(left: BorderSide(color: _typeColor, width: 4)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x081E293B),
-            blurRadius: 12,
-            offset: Offset(0, 3),
-          ),
+              color: Color(0x081E293B), blurRadius: 12, offset: Offset(0, 3))
         ],
       ),
       child: Padding(
@@ -600,32 +608,20 @@ class _UpcomingCard extends StatelessWidget {
                 color: _typeColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Center(
-                child: Text('#${apt.tokenNo}',
-                    style: TextStyle(
-                        color: _typeColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12)),
-              ),
+              child: Icon(_typeIcon, color: _typeColor, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Text('Dr. Arjun Mehta',
-                          style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14)),
-                      const SizedBox(width: 6),
-                      Icon(_typeIcon, size: 12, color: _typeColor),
-                    ],
-                  ),
+                  Text(apt.doctorName ?? 'Doctor',
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14)),
                   const SizedBox(height: 3),
-                  Text(apt.chiefComplaint,
+                  Text(apt.doctorSpecialty ?? apt.chiefComplaint ?? apt.type,
                       style: const TextStyle(
                           color: AppColors.textMuted, fontSize: 12),
                       maxLines: 1,
@@ -639,12 +635,13 @@ class _UpcomingCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: _statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(apt.time,
+                  child: Text(apt.formattedTime,
                       style: TextStyle(
                           color: _statusColor,
                           fontSize: 11,
@@ -653,16 +650,17 @@ class _UpcomingCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 GestureDetector(
                   onTap: () {
-                    if (apt.type == 'video') {
+                    if (apt.type == 'video' || apt.type == 'audio') {
                       context.push('/patient/video-call');
                     } else if (apt.type == 'chat') {
-                      context.push('/patient/chat');
+                      context.push('/patient/chat', extra: apt.id);
                     } else {
-                      context.push('/patient/waiting-room');
+                      context.push('/patient/waiting-room', extra: apt.id);
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(20),
@@ -684,7 +682,7 @@ class _UpcomingCard extends StatelessWidget {
 }
 
 class _PrescriptionCard extends StatelessWidget {
-  final MockPrescription rx;
+  final AppPrescription rx;
   const _PrescriptionCard({required this.rx});
 
   @override
@@ -693,13 +691,11 @@ class _PrescriptionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: const Border(left: BorderSide(color: Color(0xFF059669), width: 4)),
+        border: const Border(
+            left: BorderSide(color: Color(0xFF059669), width: 4)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x081E293B),
-            blurRadius: 12,
-            offset: Offset(0, 3),
-          ),
+              color: Color(0x081E293B), blurRadius: 12, offset: Offset(0, 3))
         ],
       ),
       child: Padding(
@@ -724,19 +720,20 @@ class _PrescriptionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(rx.doctorName,
+                      Text(rx.doctorName ?? 'Doctor',
                           style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
                               color: AppColors.textPrimary)),
-                      Text(rx.date,
+                      Text(rx.formattedDate,
                           style: const TextStyle(
                               color: AppColors.textMuted, fontSize: 12)),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.accentLight,
                     borderRadius: BorderRadius.circular(20),
@@ -756,16 +753,19 @@ class _PrescriptionCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Row(
                     children: [
-                      const Icon(Icons.circle, size: 5, color: AppColors.textMuted),
+                      const Icon(Icons.circle,
+                          size: 5, color: AppColors.textMuted),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(m.name,
                             style: const TextStyle(
-                                color: AppColors.textSecondary, fontSize: 13)),
+                                color: AppColors.textSecondary,
+                                fontSize: 13)),
                       ),
-                      Text(m.frequency,
-                          style: const TextStyle(
-                              color: AppColors.textMuted, fontSize: 11)),
+                      if (m.frequency != null)
+                        Text(m.frequency!,
+                            style: const TextStyle(
+                                color: AppColors.textMuted, fontSize: 11)),
                     ],
                   ),
                 )),
@@ -773,10 +773,11 @@ class _PrescriptionCard extends StatelessWidget {
               Text('+${rx.medicines.length - 3} more medicines',
                   style: const TextStyle(
                       color: AppColors.textMuted, fontSize: 12)),
-            if (rx.followUpDate != null) ...[
+            if (rx.formattedFollowUp != null) ...[
               const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.warningLight,
                   borderRadius: BorderRadius.circular(8),
@@ -787,7 +788,7 @@ class _PrescriptionCard extends StatelessWidget {
                     const Icon(Icons.calendar_today_rounded,
                         size: 12, color: AppColors.warning),
                     const SizedBox(width: 6),
-                    Text('Follow-up: ${rx.followUpDate}',
+                    Text('Follow-up: ${rx.formattedFollowUp}',
                         style: const TextStyle(
                             color: AppColors.warning,
                             fontSize: 12,
@@ -836,12 +837,12 @@ class _EmptyCard extends StatelessWidget {
 }
 
 class _FamilyChip extends StatelessWidget {
-  final Map<String, Object> member;
+  final AppFamilyMember member;
   const _FamilyChip({required this.member});
 
   @override
   Widget build(BuildContext context) {
-    final isActive = member['active'] as bool;
+    final isActive = member.isPrimary;
     return Container(
       margin: const EdgeInsets.only(right: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -867,7 +868,7 @@ class _FamilyChip extends StatelessWidget {
                 ? AppColors.primary
                 : AppColors.textMuted.withValues(alpha: 0.2),
             child: Text(
-              (member['name'] as String)[0],
+              member.initials,
               style: TextStyle(
                   color: isActive ? Colors.white : AppColors.textMuted,
                   fontWeight: FontWeight.w700,
@@ -876,14 +877,14 @@ class _FamilyChip extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            (member['name'] as String).split(' ').first,
+            member.name.split(' ').first,
             style: TextStyle(
                 color: isActive ? AppColors.primary : AppColors.textSecondary,
                 fontSize: 11,
                 fontWeight: FontWeight.w600),
           ),
           Text(
-            member['relation'] as String,
+            member.relation,
             style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
           ),
         ],

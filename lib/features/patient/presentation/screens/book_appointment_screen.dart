@@ -1,25 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/mock/mock_data.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-class BookAppointmentScreen extends StatefulWidget {
+
+class BookAppointmentScreen extends ConsumerStatefulWidget {
   const BookAppointmentScreen({super.key});
   @override
-  State<BookAppointmentScreen> createState() => _BookAppointmentScreenState();
+  ConsumerState<BookAppointmentScreen> createState() =>
+      _BookAppointmentScreenState();
 }
 
-class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
+class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
   int _step = 0; // 0=doctor, 1=type, 2=slot, 3=payment, 4=confirm
+  AppDoctor? _selectedDoctor;
   String _selectedType = '';
   String _selectedSlot = '';
-  bool _paymentDone = false;
+  String? _bookedAppointmentId;
 
   static const _consultTypes = [
-    (icon: Icons.videocam_rounded, label: 'Video', fee: '₹1,000', color: AppColors.doctorPrimary),
-    (icon: Icons.call_rounded, label: 'Audio', fee: '₹750', color: Color(0xFF7C3AED)),
-    (icon: Icons.chat_rounded, label: 'Chat', fee: '₹500', color: AppColors.doctorAccent),
-    (icon: Icons.local_hospital_rounded, label: 'In-Person', fee: '₹500', color: AppColors.warning),
+    (
+      icon: Icons.videocam_rounded,
+      label: 'Video',
+      type: 'video',
+      color: AppColors.doctorPrimary
+    ),
+    (
+      icon: Icons.call_rounded,
+      label: 'Audio',
+      type: 'audio',
+      color: Color(0xFF7C3AED)
+    ),
+    (
+      icon: Icons.chat_rounded,
+      label: 'Chat',
+      type: 'chat',
+      color: AppColors.doctorAccent
+    ),
+    (
+      icon: Icons.local_hospital_rounded,
+      label: 'In-Person',
+      type: 'in_person',
+      color: AppColors.warning
+    ),
   ];
 
   static const _slots = [
@@ -37,22 +61,22 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.patientSurface,
         title: Text(
-          ['Doctor', 'Consultation Type', 'Select Slot',
-           'Payment', 'Confirmed!'][_step.clamp(0, 4)],
+          ['Select Doctor', 'Consultation Type', 'Select Slot', 'Payment',
+              'Confirmed!'][_step.clamp(0, 4)],
           style: const TextStyle(color: AppColors.slate900),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.slate700),
-          onPressed: _step > 0
-              ? () => setState(() => _step--)
-              : () => context.pop(),
+          icon: const Icon(Icons.arrow_back_rounded,
+              color: AppColors.slate700),
+          onPressed:
+              _step > 0 ? () => setState(() => _step--) : () => context.pop(),
         ),
       ),
       body: Column(
         children: [
-          // Step indicator
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             color: Colors.white,
             child: Row(
               children: List.generate(5, (i) {
@@ -79,7 +103,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               }),
             ),
           ),
-
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -93,10 +116,16 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
   Widget _buildStep() {
     return switch (_step) {
-      0 => _DoctorCard(doc: MockData.doctor, onNext: () => setState(() => _step = 1)),
+      0 => _DoctorSelector(
+          onSelect: (doc) => setState(() {
+            _selectedDoctor = doc;
+            _step = 1;
+          }),
+        ),
       1 => _TypeSelector(
           types: _consultTypes,
           selected: _selectedType,
+          doctorFee: _selectedDoctor?.consultationFee ?? 500,
           onSelect: (t) => setState(() {
             _selectedType = t;
             _step = 2;
@@ -105,6 +134,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       2 => _SlotPicker(
           slots: _slots,
           bookedSlots: _bookedSlots,
+          doctorName: _selectedDoctor?.name ?? 'Doctor',
           selected: _selectedSlot,
           onSelect: (s) => setState(() {
             _selectedSlot = s;
@@ -114,121 +144,188 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       3 => _PaymentStep(
           type: _selectedType,
           slot: _selectedSlot,
-          onPay: () {
-            setState(() {
-              _paymentDone = true;
-              _step = 4;
-            });
-          },
+          doctorName: _selectedDoctor?.name ?? 'Doctor',
+          doctorFee: _selectedDoctor?.consultationFee ?? 500,
+          onPay: _handlePayment,
         ),
       _ => _ConfirmStep(
-          doc: MockData.doctor,
+          doctorName: _selectedDoctor?.name ?? 'Doctor',
+          doctorSpecialty: _selectedDoctor?.specialty ?? '',
           type: _selectedType,
           slot: _selectedSlot,
-          onDone: () => context.go('/patient/home'),
-          onJoin: () => context.push('/call'),
+          appointmentId: _bookedAppointmentId,
+          onDone: () => context.go('/patient'),
+          onJoin: () {
+            if (_selectedType == 'chat' && _bookedAppointmentId != null) {
+              context.push('/patient/chat', extra: _bookedAppointmentId);
+            } else {
+              context.push('/patient/video-call');
+            }
+          },
         ),
     };
+  }
+
+  Future<void> _handlePayment() async {
+    final patientId = ref.read(currentProfileProvider).valueOrNull?.id;
+    final doctor = _selectedDoctor;
+    if (patientId == null || doctor == null) return;
+
+    final typeMap = {
+      'Video': 'video',
+      'Audio': 'audio',
+      'Chat': 'chat',
+      'In-Person': 'in_person',
+    };
+
+    final now = DateTime.now();
+    final slotParts = _selectedSlot.split(' ');
+    final timeParts = slotParts[0].split(':');
+    var hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1]);
+    if (slotParts[1] == 'PM' && hour != 12) hour += 12;
+    if (slotParts[1] == 'AM' && hour == 12) hour = 0;
+    final scheduledAt = DateTime(now.year, now.month, now.day, hour, minute);
+
+    try {
+      final id = await bookAppointment(
+        doctorId: doctor.id,
+        patientId: patientId,
+        type: typeMap[_selectedType] ?? 'video',
+        scheduledAt: scheduledAt,
+        chiefComplaint: null,
+      );
+      setState(() {
+        _bookedAppointmentId = id;
+        _step = 4;
+      });
+      ref.invalidate(patientAppointmentsProvider);
+    } catch (_) {
+      setState(() => _step = 4);
+    }
+  }
+}
+
+class _DoctorSelector extends ConsumerWidget {
+  final ValueChanged<AppDoctor> onSelect;
+  const _DoctorSelector({required this.onSelect});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final docsAsync = ref.watch(allDoctorsProvider);
+    return docsAsync.when(
+      loading: () =>
+          const Center(child: CircularProgressIndicator()),
+      error: (_, __) => const Center(
+        child: Text('Failed to load doctors',
+            style: TextStyle(color: AppColors.slate500)),
+      ),
+      data: (docs) {
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text('No doctors available',
+                style: TextStyle(color: AppColors.slate500)),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Choose a doctor',
+                style: TextStyle(
+                    color: AppColors.slate700,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15)),
+            const SizedBox(height: 12),
+            ...docs.map((doc) => _DoctorCard(doc: doc, onNext: () => onSelect(doc))),
+          ],
+        );
+      },
+    );
   }
 }
 
 class _DoctorCard extends StatelessWidget {
-  final MockDoctor doc;
+  final AppDoctor doc;
   final VoidCallback onNext;
   const _DoctorCard({required this.doc, required this.onNext});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.patientBorder, width: 0.5),
-          ),
-          child: Column(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.patientBorder, width: 0.5),
+      ),
+      child: Column(
+        children: [
+          Row(
             children: [
               CircleAvatar(
-                radius: 40,
-                backgroundColor: AppColors.patientPrimary.withValues(alpha: 0.1),
+                radius: 28,
+                backgroundColor:
+                    AppColors.patientPrimary.withValues(alpha: 0.1),
                 child: Text(
-                  doc.name.split(' ').map((w) => w[0]).take(2).join(),
+                  doc.initials,
                   style: const TextStyle(
-                    fontSize: 24,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: AppColors.patientPrimary,
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(doc.name,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.slate900,
-                      fontSize: 18)),
-              Text(doc.specialty,
-                  style: const TextStyle(
-                      color: AppColors.patientPrimary, fontSize: 13)),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.star_rounded,
-                      color: AppColors.warning, size: 16),
-                  Text(' ${doc.rating}  ·  ${doc.experience} yrs  ·  ${doc.city}',
-                      style: const TextStyle(
-                          color: AppColors.slate500, fontSize: 12)),
-                ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Dr. ${doc.name}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.slate900,
+                            fontSize: 15)),
+                    Text(doc.specialty,
+                        style: const TextStyle(
+                            color: AppColors.patientPrimary, fontSize: 12)),
+                    if (doc.city != null)
+                      Text(doc.city!,
+                          style: const TextStyle(
+                              color: AppColors.slate400, fontSize: 11)),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  _Pill(Icons.verified_user_rounded, 'KYC Verified', AppColors.doctorAccent),
-                  _Pill(Icons.language_rounded, 'Hindi, English', AppColors.doctorPrimary),
-                  _Pill(Icons.people_rounded, '${doc.totalPatients}+ Patients',
-                      const Color(0xFF7C3AED)),
+                  Row(
+                    children: [
+                      const Icon(Icons.star_rounded,
+                          color: AppColors.warning, size: 14),
+                      Text(' ${doc.rating.toStringAsFixed(1)}',
+                          style: const TextStyle(
+                              color: AppColors.slate600, fontSize: 12)),
+                    ],
+                  ),
+                  Text('₹${doc.consultationFee.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.slate900,
+                          fontSize: 14)),
                 ],
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: onNext,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.patientPrimary,
-            minimumSize: const Size.fromHeight(52),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: onNext,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.patientPrimary,
+              minimumSize: const Size.fromHeight(40),
+            ),
+            child: const Text('Book Appointment'),
           ),
-          child: const Text('Book Appointment'),
-        ),
-      ],
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  const _Pill(this.icon, this.label, this.color);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 10, color: color)),
         ],
       ),
     );
@@ -236,13 +333,25 @@ class _Pill extends StatelessWidget {
 }
 
 class _TypeSelector extends StatelessWidget {
-  final List<({IconData icon, String label, String fee, Color color})> types;
+  final List<({IconData icon, String label, String type, Color color})> types;
   final String selected;
+  final double doctorFee;
   final ValueChanged<String> onSelect;
-  const _TypeSelector({required this.types, required this.selected, required this.onSelect});
+  const _TypeSelector({
+    required this.types,
+    required this.selected,
+    required this.doctorFee,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final feeMap = {
+      'Video': doctorFee,
+      'Audio': doctorFee * 0.75,
+      'Chat': doctorFee * 0.5,
+      'In-Person': doctorFee * 0.5,
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -285,15 +394,18 @@ class _TypeSelector extends StatelessWidget {
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.slate900,
-                                fontSize: selected == t.label ? 15 : 14,
+                                fontSize:
+                                    selected == t.label ? 15 : 14,
                               )),
                           const Text('Available today',
                               style: TextStyle(
-                                  color: AppColors.doctorAccent, fontSize: 11)),
+                                  color: AppColors.doctorAccent,
+                                  fontSize: 11)),
                         ],
                       ),
                     ),
-                    Text(t.fee,
+                    Text(
+                        '₹${(feeMap[t.label] ?? doctorFee).toStringAsFixed(0)}',
                         style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
@@ -309,23 +421,37 @@ class _TypeSelector extends StatelessWidget {
 
 class _SlotPicker extends StatelessWidget {
   final List<String> slots, bookedSlots;
-  final String selected;
+  final String selected, doctorName;
   final ValueChanged<String> onSelect;
-  const _SlotPicker(
-      {required this.slots, required this.bookedSlots,
-       required this.selected, required this.onSelect});
+  const _SlotPicker({
+    required this.slots,
+    required this.bookedSlots,
+    required this.selected,
+    required this.doctorName,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final dateStr = '${now.day} ${months[now.month - 1]} ${now.year}';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Available slots — Today',
             style: TextStyle(
-                color: AppColors.slate700, fontWeight: FontWeight.w600, fontSize: 15)),
+                color: AppColors.slate700,
+                fontWeight: FontWeight.w600,
+                fontSize: 15)),
         const SizedBox(height: 4),
-        const Text('14 May 2026 · Dr. Arjun Mehta',
-            style: TextStyle(color: AppColors.slate400, fontSize: 12)),
+        Text('$dateStr · Dr. $doctorName',
+            style: const TextStyle(
+                color: AppColors.slate400, fontSize: 12)),
         const SizedBox(height: 16),
         GridView.builder(
           shrinkWrap: true,
@@ -404,19 +530,29 @@ class _Legend extends StatelessWidget {
         Container(
           width: 12,
           height: 12,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+          decoration: BoxDecoration(
+              color: color, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.slate500)),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 10, color: AppColors.slate500)),
       ],
     );
   }
 }
 
 class _PaymentStep extends StatefulWidget {
-  final String type, slot;
-  final VoidCallback onPay;
-  const _PaymentStep({required this.type, required this.slot, required this.onPay});
+  final String type, slot, doctorName;
+  final double doctorFee;
+  final Future<void> Function() onPay;
+  const _PaymentStep({
+    required this.type,
+    required this.slot,
+    required this.doctorName,
+    required this.doctorFee,
+    required this.onPay,
+  });
 
   @override
   State<_PaymentStep> createState() => _PaymentStepState();
@@ -428,12 +564,23 @@ class _PaymentStepState extends State<_PaymentStep> {
 
   @override
   Widget build(BuildContext context) {
-    final fee = {'Video': 1000, 'Audio': 750, 'Chat': 500, 'In-Person': 500}[widget.type] ?? 1000;
+    final feeMap = {
+      'Video': widget.doctorFee,
+      'Audio': widget.doctorFee * 0.75,
+      'Chat': widget.doctorFee * 0.5,
+      'In-Person': widget.doctorFee * 0.5,
+    };
+    final fee = (feeMap[widget.type] ?? widget.doctorFee).toInt();
+    final now = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final dateStr = '${now.day} ${months[now.month - 1]} ${now.year}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Summary
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -443,16 +590,18 @@ class _PaymentStepState extends State<_PaymentStep> {
           ),
           child: Column(
             children: [
-              _SummaryRow('Doctor', 'Dr. Arjun Mehta'),
+              _SummaryRow('Doctor', 'Dr. ${widget.doctorName}'),
               _SummaryRow('Type', '${widget.type} Consultation'),
               _SummaryRow('Slot', widget.slot),
-              _SummaryRow('Date', '14 May 2026'),
+              _SummaryRow('Date', dateStr),
               const Divider(height: 20, color: AppColors.patientBorder),
               Row(
                 children: [
                   const Expanded(
                     child: Text('Consultation Fee',
-                        style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.slate900)),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.slate900)),
                   ),
                   Text('₹$fee',
                       style: const TextStyle(
@@ -468,14 +617,17 @@ class _PaymentStepState extends State<_PaymentStep> {
 
         const Text('Payment Method',
             style: TextStyle(
-                fontWeight: FontWeight.w600, color: AppColors.slate700, fontSize: 14)),
+                fontWeight: FontWeight.w600,
+                color: AppColors.slate700,
+                fontSize: 14)),
         const SizedBox(height: 10),
 
         ...['UPI', 'Card', 'NetBanking', 'Wallet'].map((m) => GestureDetector(
               onTap: () => setState(() => _method = m),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
@@ -528,13 +680,15 @@ class _PaymentStepState extends State<_PaymentStep> {
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
               : Text('Pay ₹$fee via $_method'),
         ),
         const SizedBox(height: 8),
         const Center(
           child: Text('Secured by Razorpay · 256-bit SSL',
-              style: TextStyle(color: AppColors.slate400, fontSize: 11)),
+              style:
+                  TextStyle(color: AppColors.slate400, fontSize: 11)),
         ),
       ],
     );
@@ -545,7 +699,7 @@ class _PaymentStepState extends State<_PaymentStep> {
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) {
       setState(() => _paying = false);
-      widget.onPay();
+      await widget.onPay();
     }
   }
 }
@@ -563,7 +717,8 @@ class _SummaryRow extends StatelessWidget {
           SizedBox(
             width: 90,
             child: Text(label,
-                style: const TextStyle(color: AppColors.slate400, fontSize: 12)),
+                style: const TextStyle(
+                    color: AppColors.slate400, fontSize: 12)),
           ),
           Expanded(
             child: Text(value,
@@ -579,19 +734,28 @@ class _SummaryRow extends StatelessWidget {
 }
 
 class _ConfirmStep extends StatelessWidget {
-  final MockDoctor doc;
-  final String type, slot;
+  final String doctorName, doctorSpecialty, type, slot;
+  final String? appointmentId;
   final VoidCallback onDone, onJoin;
   const _ConfirmStep({
-    required this.doc,
+    required this.doctorName,
+    required this.doctorSpecialty,
     required this.type,
     required this.slot,
+    required this.appointmentId,
     required this.onDone,
     required this.onJoin,
   });
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final dateStr = '${now.day} ${months[now.month - 1]} ${now.year}';
+
     return Column(
       children: [
         const SizedBox(height: 20),
@@ -612,7 +776,7 @@ class _ConfirmStep extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: AppColors.slate900)),
         const SizedBox(height: 8),
-        Text('Payment successful · Appointment with ${doc.name}',
+        Text('Appointment with Dr. $doctorName',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.slate500, fontSize: 13)),
         const SizedBox(height: 24),
@@ -625,18 +789,14 @@ class _ConfirmStep extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _SummaryRow('Doctor', doc.name),
-              _SummaryRow('Specialty', doc.specialty),
+              _SummaryRow('Doctor', 'Dr. $doctorName'),
+              _SummaryRow('Specialty', doctorSpecialty),
               _SummaryRow('Type', '$type Consultation'),
-              _SummaryRow('Date', '14 May 2026'),
+              _SummaryRow('Date', dateStr),
               _SummaryRow('Time', slot),
-              _SummaryRow('Token', '#007'),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        const Text('📱 Prescription & call link sent via WhatsApp',
-            style: TextStyle(color: AppColors.doctorAccent, fontSize: 12)),
         const SizedBox(height: 24),
         ElevatedButton.icon(
           onPressed: onJoin,
@@ -644,7 +804,7 @@ class _ConfirmStep extends StatelessWidget {
             backgroundColor: AppColors.patientPrimary,
             minimumSize: const Size.fromHeight(52),
           ),
-          icon: const Icon(Icons.videocam_rounded),
+          icon: const Icon(Icons.play_arrow_rounded),
           label: const Text('Join Consultation'),
         ),
         const SizedBox(height: 10),

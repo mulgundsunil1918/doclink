@@ -54,13 +54,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   void _routeByRole(UserEntity user) {
     if (user.isDoctor) {
-      if (!user.isKycApproved) {
-        context.goNamed('doctor-onboarding');
-      } else {
-        context.goNamed('doctor-dashboard');
-      }
+      context.go('/doctor');
+    } else if (user.isReceptionist) {
+      context.go('/receptionist');
     } else {
-      context.goNamed('patient-home');
+      context.go('/patient');
     }
   }
 

@@ -1,26 +1,47 @@
 import 'package:flutter/material.dart';
-import '../../../../core/mock/mock_data.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/dl_card.dart';
 
-class PrescriptionWriterScreen extends StatefulWidget {
+const _kMedicines = [
+  'Paracetamol 500mg', 'Amoxicillin 500mg', 'Ibuprofen 400mg', 'Cetirizine 10mg',
+  'Pantoprazole 40mg', 'Metformin 500mg', 'Atorvastatin 10mg', 'Omeprazole 20mg',
+  'Dolo 650', 'Azithromycin 500mg', 'Ciprofloxacin 500mg', 'Metronidazole 400mg',
+  'Cefixime 200mg', 'Ranitidine 150mg', 'Montelukast 10mg', 'Losartan 50mg',
+  'Amlodipine 5mg', 'Aspirin 75mg', 'Vitamin D3 60000IU', 'Vitamin B12 500mcg',
+  'Iron + Folic Acid', 'Calcium 500mg', 'Multivitamin', 'Prednisolone 5mg',
+];
+
+class PrescriptionWriterScreen extends ConsumerStatefulWidget {
   final String? patientName;
+  final String? patientId;
   final String? appointmentId;
-  const PrescriptionWriterScreen({super.key, this.patientName, this.appointmentId});
+  const PrescriptionWriterScreen({
+    super.key,
+    this.patientName,
+    this.patientId,
+    this.appointmentId,
+  });
 
   @override
-  State<PrescriptionWriterScreen> createState() => _PrescriptionWriterScreenState();
+  ConsumerState<PrescriptionWriterScreen> createState() =>
+      _PrescriptionWriterScreenState();
 }
 
-class _PrescriptionWriterScreenState extends State<PrescriptionWriterScreen> {
+class _PrescriptionWriterScreenState
+    extends ConsumerState<PrescriptionWriterScreen> {
   final _diagnosisCtrl = TextEditingController();
   final _instructionsCtrl = TextEditingController();
   final _medicineCtrl = TextEditingController();
   final List<_RxEntry> _medicines = [];
   List<String> _suggestions = [];
   String? _followUpDate;
+  DateTime? _followUpDateTime;
   bool _showPreview = false;
+  bool _isSending = false;
+  AppAppointment? _selectedAppointment;
 
   @override
   void dispose() {
@@ -30,13 +51,19 @@ class _PrescriptionWriterScreenState extends State<PrescriptionWriterScreen> {
     super.dispose();
   }
 
+  String get _effectivePatientName =>
+      widget.patientName ?? _selectedAppointment?.patientName ?? '';
+
+  String? get _effectivePatientId =>
+      widget.patientId ?? _selectedAppointment?.patientId;
+
   void _onMedicineQuery(String q) {
     if (q.length < 2) {
       setState(() => _suggestions = []);
       return;
     }
     setState(() {
-      _suggestions = MockData.medicines
+      _suggestions = _kMedicines
           .where((m) => m.toLowerCase().contains(q.toLowerCase()))
           .take(5)
           .toList();
@@ -55,259 +82,293 @@ class _PrescriptionWriterScreenState extends State<PrescriptionWriterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final doctorAsync = ref.watch(currentDoctorProvider);
+    return doctorAsync.when(
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, __) => _buildScaffold(context, null),
+      data: (doctor) => _buildScaffold(context, doctor),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, AppDoctor? doctor) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.patientName != null
-            ? 'Rx — ${widget.patientName}'
+        title: Text(_effectivePatientName.isNotEmpty
+            ? 'Rx — $_effectivePatientName'
             : 'Prescription Writer'),
         actions: [
           TextButton(
-            onPressed: _medicines.isNotEmpty ? () => setState(() => _showPreview = true) : null,
-            child: const Text('Preview', style: TextStyle(color: AppColors.doctorAccent)),
+            onPressed:
+                _medicines.isNotEmpty ? () => setState(() => _showPreview = true) : null,
+            child:
+                const Text('Preview', style: TextStyle(color: AppColors.doctorAccent)),
           ),
         ],
       ),
       body: _showPreview
           ? _PreviewView(
-              doctor: MockData.doctor,
-              patientName: widget.patientName ?? 'Patient',
+              doctorName: doctor?.name ?? 'Doctor',
+              doctorSpecialty: doctor?.specialty ?? '',
+              doctorRegNo: doctor?.registrationNo ?? '',
+              patientName: _effectivePatientName.isNotEmpty
+                  ? _effectivePatientName
+                  : 'Patient',
               diagnosis: _diagnosisCtrl.text,
               medicines: _medicines,
               instructions: _instructionsCtrl.text,
               followUpDate: _followUpDate,
               onEdit: () => setState(() => _showPreview = false),
-              onSend: _sendPrescription,
+              onSend: doctor != null ? () => _sendPrescription(doctor) : null,
+              isSending: _isSending,
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  DlCard(
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.doctorPrimary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Center(
-                            child: Text('℞',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  color: AppColors.doctorPrimary,
-                                  fontWeight: FontWeight.w700,
-                                )),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(MockData.doctor.name,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700, fontSize: 13)),
-                              Text(
-                                  '${MockData.doctor.specialty} · Reg: ${MockData.doctor.regNumber}',
-                                  style: const TextStyle(
-                                      color: AppColors.slate400, fontSize: 11)),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          _today(),
+          : _buildForm(context, doctor),
+    );
+  }
+
+  Widget _buildForm(BuildContext context, AppDoctor? doctor) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DlCard(
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.doctorPrimary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Center(
+                    child: Text('℞',
+                        style: TextStyle(
+                            fontSize: 24,
+                            color: AppColors.doctorPrimary,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(doctor?.name ?? 'Doctor',
                           style: const TextStyle(
-                              color: AppColors.slate400, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Patient info
-                  TextFormField(
-                    initialValue: widget.patientName ?? '',
-                    decoration: const InputDecoration(
-                      labelText: 'Patient Name',
-                      prefixIcon: Icon(Icons.person_outline),
-                    ),
-                    readOnly: widget.patientName != null,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Diagnosis
-                  TextFormField(
-                    controller: _diagnosisCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Diagnosis / Chief Complaint',
-                      prefixIcon: Icon(Icons.local_hospital_outlined),
-                    ),
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Medicines header
-                  Row(
-                    children: [
-                      Text('Medicines',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.doctorPrimary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text('${_medicines.length}',
-                            style: const TextStyle(
-                                color: AppColors.doctorPrimary, fontSize: 12)),
-                      ),
+                              fontWeight: FontWeight.w700, fontSize: 13)),
+                      Text(
+                          '${doctor?.specialty ?? ''} · Reg: ${doctor?.registrationNo ?? '—'}',
+                          style: const TextStyle(
+                              color: AppColors.slate400, fontSize: 11)),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                ),
+                Text(_today(),
+                    style:
+                        const TextStyle(color: AppColors.slate400, fontSize: 11)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
 
-                  // Medicine search
-                  TextField(
-                    controller: _medicineCtrl,
-                    onChanged: _onMedicineQuery,
-                    decoration: InputDecoration(
-                      hintText: 'Search medicine name...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _medicineCtrl.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _medicineCtrl.clear();
-                                setState(() => _suggestions = []);
-                              })
-                          : null,
+          if (widget.patientId == null) ...[
+            _AppointmentPicker(
+              selected: _selectedAppointment,
+              onSelect: (a) => setState(() => _selectedAppointment = a),
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
+            TextFormField(
+              initialValue: widget.patientName ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Patient Name',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              readOnly: true,
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          TextFormField(
+            controller: _diagnosisCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Diagnosis / Chief Complaint',
+              prefixIcon: Icon(Icons.local_hospital_outlined),
+            ),
+            maxLines: 2,
+          ),
+          const SizedBox(height: 20),
+
+          Row(
+            children: [
+              Text('Medicines', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.doctorPrimary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text('${_medicines.length}',
+                    style: const TextStyle(
+                        color: AppColors.doctorPrimary, fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          TextField(
+            controller: _medicineCtrl,
+            onChanged: _onMedicineQuery,
+            decoration: InputDecoration(
+              hintText: 'Search medicine name...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _medicineCtrl.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _medicineCtrl.clear();
+                        setState(() => _suggestions = []);
+                      })
+                  : null,
+            ),
+          ),
+          if (_suggestions.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.doctorCard,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.doctorBorder),
+              ),
+              child: Column(
+                children: _suggestions
+                    .map((s) => ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.medication_outlined,
+                              size: 18, color: AppColors.doctorAccent),
+                          title: Text(s,
+                              style: const TextStyle(fontSize: 13)),
+                          onTap: () => _addMedicine(s),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+
+          ..._medicines.asMap().entries.map((e) => _MedicineCard(
+                entry: e.value,
+                index: e.key,
+                onRemove: () => _removeMedicine(e.key),
+                onUpdate: (v) => setState(() => _medicines[e.key] = v),
+              )),
+
+          if (_medicines.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text('No medicines added yet',
+                    style: TextStyle(color: AppColors.slate500)),
+              ),
+            ),
+          const SizedBox(height: 16),
+
+          TextFormField(
+            controller: _instructionsCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Special Instructions',
+              hintText: 'e.g. Avoid cold water, take medicines after meals',
+            ),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 12),
+
+          GestureDetector(
+            onTap: _pickFollowUp,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.doctorCard,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.doctorBorder),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.event_repeat_rounded,
+                      color: AppColors.doctorAccent, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _followUpDate ?? 'Set Follow-up Date (optional)',
+                      style: TextStyle(
+                        color: _followUpDate != null
+                            ? Colors.white
+                            : AppColors.slate500,
+                      ),
                     ),
                   ),
-                  if (_suggestions.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.doctorCard,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.doctorBorder),
-                      ),
-                      child: Column(
-                        children: _suggestions
-                            .map((s) => ListTile(
-                                  dense: true,
-                                  leading: const Icon(Icons.medication_outlined,
-                                      size: 18, color: AppColors.doctorAccent),
-                                  title: Text(s, style: const TextStyle(fontSize: 13)),
-                                  onTap: () => _addMedicine(s),
-                                ))
-                            .toList(),
-                      ),
+                  if (_followUpDate != null)
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _followUpDate = null;
+                        _followUpDateTime = null;
+                      }),
+                      child: const Icon(Icons.clear,
+                          size: 16, color: AppColors.slate400),
                     ),
-                  ],
-                  const SizedBox(height: 12),
-
-                  // Medicine list
-                  ..._medicines.asMap().entries.map((e) => _MedicineCard(
-                        entry: e.value,
-                        index: e.key,
-                        onRemove: () => _removeMedicine(e.key),
-                        onUpdate: (v) => setState(() => _medicines[e.key] = v),
-                      )),
-
-                  if (_medicines.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        child: Text('No medicines added yet',
-                            style: TextStyle(color: AppColors.slate500)),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-
-                  // Instructions
-                  TextFormField(
-                    controller: _instructionsCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Special Instructions',
-                      hintText: 'e.g. Avoid cold water, take medicines after meals',
-                    ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Follow-up
-                  GestureDetector(
-                    onTap: _pickFollowUp,
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.doctorCard,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.doctorBorder),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.event_repeat_rounded,
-                              color: AppColors.doctorAccent, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _followUpDate ?? 'Set Follow-up Date (optional)',
-                              style: TextStyle(
-                                color: _followUpDate != null
-                                    ? Colors.white
-                                    : AppColors.slate500,
-                              ),
-                            ),
-                          ),
-                          if (_followUpDate != null)
-                            GestureDetector(
-                              onTap: () => setState(() => _followUpDate = null),
-                              child: const Icon(Icons.clear,
-                                  size: 16, color: AppColors.slate400),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _medicines.isNotEmpty
-                              ? () => setState(() => _showPreview = true)
-                              : null,
-                          icon: const Icon(Icons.visibility_outlined, size: 16),
-                          label: const Text('Preview'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _medicines.isNotEmpty ? _sendPrescription : null,
-                          icon: const Icon(Icons.send_rounded, size: 16),
-                          label: const Text('Send Rx'),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 24),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _medicines.isNotEmpty
+                      ? () => setState(() => _showPreview = true)
+                      : null,
+                  icon: const Icon(Icons.visibility_outlined, size: 16),
+                  label: const Text('Preview'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: (_medicines.isNotEmpty && !_isSending)
+                      ? () {
+                          final doctor =
+                              ref.read(currentDoctorProvider).valueOrNull;
+                          if (doctor != null) _sendPrescription(doctor);
+                        }
+                      : null,
+                  icon: _isSending
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.send_rounded, size: 16),
+                  label: const Text('Send Rx'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   String _today() {
     final now = DateTime.now();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
     return '${now.day} ${months[now.month - 1]} ${now.year}';
   }
 
@@ -319,27 +380,112 @@ class _PrescriptionWriterScreenState extends State<PrescriptionWriterScreen> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(primary: AppColors.doctorPrimary),
+          colorScheme:
+              const ColorScheme.dark(primary: AppColors.doctorPrimary),
         ),
         child: child!,
       ),
     );
     if (picked != null) {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      setState(() => _followUpDate = '${picked.day} ${months[picked.month - 1]} ${picked.year}');
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      setState(() {
+        _followUpDateTime = picked;
+        _followUpDate =
+            '${picked.day} ${months[picked.month - 1]} ${picked.year}';
+      });
     }
   }
 
-  void _sendPrescription() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Prescription sent via WhatsApp + SMS ✓'),
-        backgroundColor: AppColors.doctorAccent,
-        duration: Duration(seconds: 3),
-      ),
+  Future<void> _sendPrescription(AppDoctor doctor) async {
+    final patientId = _effectivePatientId;
+    if (patientId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a patient first')),
+      );
+      return;
+    }
+    setState(() => _isSending = true);
+    try {
+      await savePrescription(
+        doctorId: doctor.id,
+        patientId: patientId,
+        diagnosis: _diagnosisCtrl.text.trim(),
+        notes: _instructionsCtrl.text.trim().isEmpty
+            ? null
+            : _instructionsCtrl.text.trim(),
+        followUpDate: _followUpDateTime,
+        appointmentId: widget.appointmentId ?? _selectedAppointment?.id,
+        medicines: _medicines
+            .map((m) => {
+                  'name': m.name,
+                  'dosage': m.dosage,
+                  'frequency': m.frequency,
+                  'duration': m.duration,
+                })
+            .toList(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Prescription saved'),
+          backgroundColor: AppColors.doctorAccent,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+}
+
+class _AppointmentPicker extends ConsumerWidget {
+  final AppAppointment? selected;
+  final ValueChanged<AppAppointment> onSelect;
+  const _AppointmentPicker({required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final aptsAsync = ref.watch(doctorAppointmentsProvider);
+    return aptsAsync.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (apts) {
+        final active =
+            apts.where((a) => a.status != 'cancelled' && a.status != 'completed').toList();
+        if (active.isEmpty) {
+          return const Text('No active appointments today',
+              style: TextStyle(color: AppColors.slate400));
+        }
+        return DropdownButtonFormField<AppAppointment>(
+          value: selected,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Select Patient',
+            prefixIcon: Icon(Icons.person_search_rounded),
+            border: OutlineInputBorder(),
+          ),
+          items: active
+              .map((a) => DropdownMenuItem(
+                    value: a,
+                    child: Text(
+                        a.patientName ?? 'Patient (#${a.tokenNo ?? '?'})'),
+                  ))
+              .toList(),
+          onChanged: (a) {
+            if (a != null) onSelect(a);
+          },
+        );
+      },
     );
-    if (mounted) Navigator.pop(context);
   }
 }
 
@@ -423,7 +569,9 @@ class _MedicineCard extends StatelessWidget {
                 child: _DropdownField(
                   label: 'Dosage',
                   value: entry.dosage,
-                  options: const ['½ tablet', '1 tablet', '2 tablets', '5ml', '10ml'],
+                  options: const [
+                    '½ tablet', '1 tablet', '2 tablets', '5ml', '10ml'
+                  ],
                   onChanged: (v) => onUpdate(entry.copyWith(dosage: v)),
                 ),
               ),
@@ -505,14 +653,18 @@ class _DropdownField extends StatelessWidget {
 }
 
 class _PreviewView extends StatelessWidget {
-  final dynamic doctor;
+  final String doctorName, doctorSpecialty, doctorRegNo;
   final String patientName, diagnosis, instructions;
   final List<_RxEntry> medicines;
   final String? followUpDate;
-  final VoidCallback onEdit, onSend;
+  final VoidCallback? onSend;
+  final VoidCallback onEdit;
+  final bool isSending;
 
   const _PreviewView({
-    required this.doctor,
+    required this.doctorName,
+    required this.doctorSpecialty,
+    required this.doctorRegNo,
     required this.patientName,
     required this.diagnosis,
     required this.medicines,
@@ -520,6 +672,7 @@ class _PreviewView extends StatelessWidget {
     required this.followUpDate,
     required this.onEdit,
     required this.onSend,
+    required this.isSending,
   });
 
   @override
@@ -534,28 +687,30 @@ class _PreviewView extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 12)
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 12)
                 ],
               ),
               child: Column(
                 children: [
-                  // Letterhead
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: const BoxDecoration(
                       color: Color(0xFF1D4ED8),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(12)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(doctor.name,
+                        Text(doctorName,
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700)),
-                        Text('${doctor.specialty} · ${doctor.regNumber}',
+                        Text('$doctorSpecialty · $doctorRegNo',
                             style: const TextStyle(
                                 color: Colors.white70, fontSize: 11)),
                       ],
@@ -635,7 +790,8 @@ class _PreviewView extends StatelessWidget {
                                   color: Colors.black54, fontSize: 11)),
                           const SizedBox(height: 4),
                           Text(instructions,
-                              style: const TextStyle(color: Colors.black87)),
+                              style:
+                                  const TextStyle(color: Colors.black87)),
                         ],
                         if (followUpDate != null) ...[
                           const Divider(),
@@ -652,11 +808,11 @@ class _PreviewView extends StatelessWidget {
                           ),
                         ],
                         const Divider(height: 24),
-                        const Text('Dr\'s Signature',
-                            style:
-                                TextStyle(color: Colors.black54, fontSize: 11)),
+                        const Text("Dr's Signature",
+                            style: TextStyle(
+                                color: Colors.black54, fontSize: 11)),
                         const SizedBox(height: 4),
-                        Text(doctor.name,
+                        Text(doctorName,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: Colors.black,
@@ -688,11 +844,17 @@ class _PreviewView extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: ElevatedButton.icon(
-                  onPressed: onSend,
-                  icon: const Icon(Icons.send_rounded, size: 16),
-                  label: const Text('Send via WhatsApp'),
+                  onPressed: isSending ? null : onSend,
+                  icon: isSending
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.save_rounded, size: 16),
+                  label: const Text('Save Prescription'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF25D366),
+                    backgroundColor: AppColors.doctorAccent,
                   ),
                 ),
               ),

@@ -1,135 +1,152 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/dl_card.dart';
 
-class FamilyProfilesScreen extends StatefulWidget {
+const _kRelations = ['Self', 'Spouse', 'Child', 'Parent', 'Sibling', 'Other'];
+const _kBloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+
+const _kColors = [
+  AppColors.patientPrimary,
+  Color(0xFF0891B2),
+  Color(0xFF7C3AED),
+  Color(0xFFD97706),
+  Color(0xFF059669),
+];
+
+class FamilyProfilesScreen extends ConsumerStatefulWidget {
   const FamilyProfilesScreen({super.key});
   @override
-  State<FamilyProfilesScreen> createState() => _FamilyProfilesScreenState();
+  ConsumerState<FamilyProfilesScreen> createState() =>
+      _FamilyProfilesScreenState();
 }
 
-class _FamilyProfilesScreenState extends State<FamilyProfilesScreen> {
+class _FamilyProfilesScreenState extends ConsumerState<FamilyProfilesScreen> {
   int _active = 0;
 
-  final _members = [
-    _FamilyMember(
-      name: 'Riya Sharma',
-      relation: 'Self',
-      age: 28,
-      blood: 'B+',
-      conditions: ['Hypertension'],
-      visits: 6,
-      avatar: 'RS',
-      color: AppColors.patientPrimary,
-    ),
-    _FamilyMember(
-      name: 'Suresh Sharma',
-      relation: 'Father',
-      age: 58,
-      blood: 'O+',
-      conditions: ['Diabetes', 'Hypertension'],
-      visits: 12,
-      avatar: 'SS',
-      color: const Color(0xFF0891B2),
-    ),
-    _FamilyMember(
-      name: 'Meena Sharma',
-      relation: 'Mother',
-      age: 54,
-      blood: 'A+',
-      conditions: ['Thyroid'],
-      visits: 4,
-      avatar: 'MS',
-      color: const Color(0xFF7C3AED),
-    ),
-    _FamilyMember(
-      name: 'Aryan Sharma',
-      relation: 'Son',
-      age: 5,
-      blood: 'B+',
-      conditions: [],
-      visits: 2,
-      avatar: 'AS',
-      color: const Color(0xFFD97706),
-    ),
-  ];
+  Color _colorFor(int i) => _kColors[i % _kColors.length];
 
   @override
   Widget build(BuildContext context) {
-    final member = _members[_active];
+    final membersAsync = ref.watch(familyMembersProvider);
+    final patientAsync = ref.watch(currentPatientProvider);
+
     return Scaffold(
       backgroundColor: AppColors.patientSurface,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         title: const Text('Family Profiles',
-            style: TextStyle(color: AppColors.slate800, fontWeight: FontWeight.w700)),
+            style: TextStyle(
+                color: AppColors.slate800, fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add_rounded, color: AppColors.patientPrimary),
-            onPressed: () => _showAddMemberSheet(context),
+            icon: const Icon(Icons.person_add_rounded,
+                color: AppColors.patientPrimary),
+            onPressed: () => patientAsync.valueOrNull != null
+                ? _showAddMemberSheet(context, patientAsync.valueOrNull!.id)
+                : null,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Member selector strip
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: List.generate(
-                  _members.length,
-                  (i) => _MemberAvatar(
-                    member: _members[i],
-                    selected: i == _active,
-                    onTap: () => setState(() => _active = i),
+      body: membersAsync.when(
+        loading: () =>
+            const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(child: Text('Failed to load profiles')),
+        data: (members) {
+          if (members.isEmpty) return _EmptyState(
+            onAdd: () => patientAsync.valueOrNull != null
+                ? _showAddMemberSheet(context, patientAsync.valueOrNull!.id)
+                : null,
+          );
+
+          final idx = _active.clamp(0, members.length - 1);
+          final member = members[idx];
+
+          return Column(
+            children: [
+              // Member selector strip
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: List.generate(members.length, (i) {
+                      final m = members[i];
+                      final color = _colorFor(i);
+                      return _MemberAvatar(
+                        name: m.name,
+                        relation: m.relation,
+                        color: color,
+                        selected: i == idx,
+                        onTap: () => setState(() => _active = i),
+                      );
+                    }),
                   ),
                 ),
               ),
-            ),
-          ),
-          // Profile detail
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Column(
-                children: [
-                  _ProfileCard(member: member),
-                  const SizedBox(height: 16),
-                  _ConditionsCard(member: member),
-                  const SizedBox(height: 16),
-                  _QuickStatsCard(member: member),
-                  const SizedBox(height: 16),
-                  _ActionsCard(member: member),
-                ],
+              // Profile detail
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    children: [
+                      _ProfileCard(member: member, color: _colorFor(idx)),
+                      const SizedBox(height: 16),
+                      _ConditionsCard(member: member),
+                      const SizedBox(height: 16),
+                      _QuickStatsCard(member: member),
+                      const SizedBox(height: 16),
+                      _ActionsCard(
+                        member: member,
+                        onBook: () => context.push('/patient/book'),
+                        onRecords: () => context.push('/patient/records'),
+                        onShare: () => Share.share(
+                          'Family member profile\n'
+                          'Name: ${member.name}\n'
+                          'Relation: ${member.relation}\n'
+                          'Age: ${member.age ?? "—"}\n'
+                          'Blood Group: ${member.bloodGroup ?? "—"}\n'
+                          'Conditions: ${member.conditions.isEmpty ? "None" : member.conditions.join(", ")}',
+                          subject: '${member.name} — Health Profile',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
-  void _showAddMemberSheet(BuildContext context) {
+  void _showAddMemberSheet(BuildContext context, String patientId) {
     final nameCtrl = TextEditingController();
+    final ageCtrl = TextEditingController();
     String relation = 'Spouse';
+    String? bloodGroup;
+    String? gender;
+    bool saving = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        child: StatefulBuilder(
-          builder: (ctx, setLocal) => Column(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setLocal) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -142,40 +159,116 @@ class _FamilyProfilesScreenState extends State<FamilyProfilesScreen> {
               TextField(
                 controller: nameCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
-                ),
+                    labelText: 'Full Name *', border: OutlineInputBorder()),
+                textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: relation,
-                decoration: const InputDecoration(
-                  labelText: 'Relation',
-                  border: OutlineInputBorder(),
-                ),
-                items: ['Spouse', 'Child', 'Parent', 'Sibling', 'Other']
-                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                    .toList(),
-                onChanged: (v) => setLocal(() => relation = v!),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: relation,
+                      decoration: const InputDecoration(
+                          labelText: 'Relation', border: OutlineInputBorder()),
+                      items: _kRelations
+                          .map((r) =>
+                              DropdownMenuItem(value: r, child: Text(r)))
+                          .toList(),
+                      onChanged: (v) => setLocal(() => relation = v!),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: ageCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                          labelText: 'Age', border: OutlineInputBorder()),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: gender,
+                      decoration: const InputDecoration(
+                          labelText: 'Gender', border: OutlineInputBorder()),
+                      items: ['Male', 'Female', 'Other']
+                          .map((g) =>
+                              DropdownMenuItem(value: g, child: Text(g)))
+                          .toList(),
+                      onChanged: (v) => setLocal(() => gender = v),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: bloodGroup,
+                      decoration: const InputDecoration(
+                          labelText: 'Blood Group',
+                          border: OutlineInputBorder()),
+                      items: _kBloodGroups
+                          .map((b) =>
+                              DropdownMenuItem(value: b, child: Text(b)))
+                          .toList(),
+                      onChanged: (v) => setLocal(() => bloodGroup = v),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${nameCtrl.text.isEmpty ? 'Member' : nameCtrl.text} added'),
-                        backgroundColor: AppColors.patientPrimary,
-                      ),
-                    );
-                  },
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (nameCtrl.text.trim().isEmpty) return;
+                          setLocal(() => saving = true);
+                          try {
+                            await addFamilyMember(
+                              patientId: patientId,
+                              name: nameCtrl.text.trim(),
+                              relation: relation,
+                              age: int.tryParse(ageCtrl.text.trim()),
+                              gender: gender,
+                              bloodGroup: bloodGroup,
+                            );
+                            ref.invalidate(familyMembersProvider);
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      '${nameCtrl.text.trim()} added to family'),
+                                  backgroundColor: AppColors.patientPrimary,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setLocal(() => saving = false);
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Failed to add member')),
+                              );
+                            }
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.patientPrimary,
                     minimumSize: const Size(double.infinity, 48),
                   ),
-                  child: const Text('Add Member'),
+                  child: saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Add Member'),
                 ),
               ),
             ],
@@ -186,15 +279,63 @@ class _FamilyProfilesScreenState extends State<FamilyProfilesScreen> {
   }
 }
 
+// ─── Widgets ─────────────────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  final VoidCallback? onAdd;
+  const _EmptyState({this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.family_restroom_rounded,
+              size: 64, color: AppColors.slate300),
+          const SizedBox(height: 16),
+          const Text('No family members yet',
+              style: TextStyle(
+                  color: AppColors.slate500,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const Text('Add your family to book appointments for them',
+              style: TextStyle(color: AppColors.slate400, fontSize: 13),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.person_add_rounded),
+            label: const Text('Add Family Member'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.patientPrimary,
+                foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MemberAvatar extends StatelessWidget {
-  final _FamilyMember member;
+  final String name, relation;
+  final Color color;
   final bool selected;
   final VoidCallback onTap;
   const _MemberAvatar({
-    required this.member,
+    required this.name,
+    required this.relation,
+    required this.color,
     required this.selected,
     required this.onTap,
   });
+
+  String get _initials {
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,34 +349,25 @@ class _MemberAvatar extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: selected
-                    ? member.color
-                    : member.color.withValues(alpha: 0.15),
+                color: selected ? color : color.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
-                border: selected
-                    ? Border.all(color: member.color, width: 2.5)
-                    : null,
+                border: selected ? Border.all(color: color, width: 2.5) : null,
               ),
               child: Center(
-                child: Text(
-                  member.avatar,
-                  style: TextStyle(
-                    color: selected ? Colors.white : member.color,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
+                child: Text(_initials,
+                    style: TextStyle(
+                        color: selected ? Colors.white : color,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14)),
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              member.relation,
-              style: TextStyle(
-                fontSize: 11,
-                color: selected ? member.color : AppColors.slate500,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
+            Text(relation,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: selected ? color : AppColors.slate500,
+                    fontWeight:
+                        selected ? FontWeight.w600 : FontWeight.normal)),
           ],
         ),
       ),
@@ -244,8 +376,15 @@ class _MemberAvatar extends StatelessWidget {
 }
 
 class _ProfileCard extends StatelessWidget {
-  final _FamilyMember member;
-  const _ProfileCard({required this.member});
+  final AppFamilyMember member;
+  final Color color;
+  const _ProfileCard({required this.member, required this.color});
+
+  String get _initials {
+    final parts = member.name.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return member.name.isNotEmpty ? member.name[0].toUpperCase() : '?';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -256,13 +395,15 @@ class _ProfileCard extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: member.color.withValues(alpha: 0.15),
+              color: color.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Center(
-              child: Text(member.avatar,
+              child: Text(_initials,
                   style: TextStyle(
-                      color: member.color, fontWeight: FontWeight.w700, fontSize: 20)),
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 20)),
             ),
           ),
           const SizedBox(width: 16),
@@ -276,27 +417,31 @@ class _ProfileCard extends StatelessWidget {
                         color: AppColors.slate800,
                         fontSize: 16)),
                 const SizedBox(height: 2),
-                Text('${member.relation} • ${member.age} years',
-                    style: const TextStyle(color: AppColors.slate500, fontSize: 13)),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDC2626).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${member.blood} Blood Group',
-                    style: const TextStyle(
-                        color: Color(0xFFDC2626), fontSize: 11, fontWeight: FontWeight.w600),
-                  ),
+                Text(
+                  '${member.relation}${member.age != null ? " • ${member.age} years" : ""}${member.gender != null ? " • ${member.gender}" : ""}',
+                  style: const TextStyle(
+                      color: AppColors.slate500, fontSize: 13),
                 ),
+                if (member.bloodGroup != null) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${member.bloodGroup} Blood Group',
+                      style: const TextStyle(
+                          color: Color(0xFFDC2626),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
               ],
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_rounded, color: AppColors.slate400),
-            onPressed: () {},
           ),
         ],
       ),
@@ -305,7 +450,7 @@ class _ProfileCard extends StatelessWidget {
 }
 
 class _ConditionsCard extends StatelessWidget {
-  final _FamilyMember member;
+  final AppFamilyMember member;
   const _ConditionsCard({required this.member});
 
   @override
@@ -314,25 +459,16 @@ class _ConditionsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.health_and_safety_rounded,
+              Icon(Icons.health_and_safety_rounded,
                   color: AppColors.patientPrimary, size: 18),
-              const SizedBox(width: 8),
-              const Text('Health Conditions',
+              SizedBox(width: 8),
+              Text('Health Conditions',
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppColors.slate800,
                       fontSize: 14)),
-              const Spacer(),
-              TextButton(
-                onPressed: () {},
-                style: TextButton.styleFrom(
-                    foregroundColor: AppColors.patientPrimary,
-                    minimumSize: Size.zero,
-                    padding: EdgeInsets.zero),
-                child: const Text('+ Add', style: TextStyle(fontSize: 12)),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -345,11 +481,12 @@ class _ConditionsCard extends StatelessWidget {
               runSpacing: 8,
               children: member.conditions
                   .map((c) => Chip(
-                        label: Text(c, style: const TextStyle(fontSize: 12)),
+                        label: Text(c,
+                            style: const TextStyle(fontSize: 12)),
                         backgroundColor:
                             AppColors.patientPrimary.withValues(alpha: 0.1),
-                        labelStyle:
-                            const TextStyle(color: AppColors.patientPrimary),
+                        labelStyle: const TextStyle(
+                            color: AppColors.patientPrimary),
                         side: BorderSide.none,
                       ))
                   .toList(),
@@ -361,7 +498,7 @@ class _ConditionsCard extends StatelessWidget {
 }
 
 class _QuickStatsCard extends StatelessWidget {
-  final _FamilyMember member;
+  final AppFamilyMember member;
   const _QuickStatsCard({required this.member});
 
   @override
@@ -370,24 +507,24 @@ class _QuickStatsCard extends StatelessWidget {
       child: Row(
         children: [
           _StatItem(
-            label: 'Total Visits',
-            value: '${member.visits}',
-            icon: Icons.local_hospital_rounded,
+            label: 'Conditions',
+            value: '${member.conditions.length}',
+            icon: Icons.health_and_safety_rounded,
             color: AppColors.patientPrimary,
           ),
-          _Divider(),
+          _StatDivider(),
           _StatItem(
-            label: 'Prescriptions',
-            value: '${(member.visits * 0.8).round()}',
-            icon: Icons.medication_rounded,
-            color: AppColors.patientSecondary,
+            label: 'Blood Group',
+            value: member.bloodGroup ?? '—',
+            icon: Icons.water_drop_rounded,
+            color: const Color(0xFFDC2626),
           ),
-          _Divider(),
+          _StatDivider(),
           _StatItem(
-            label: 'Reports',
-            value: '${(member.visits * 0.5).round()}',
-            icon: Icons.description_rounded,
-            color: const Color(0xFF7C3AED),
+            label: 'Age',
+            value: member.age != null ? '${member.age}y' : '—',
+            icon: Icons.cake_rounded,
+            color: AppColors.patientSecondary,
           ),
         ],
       ),
@@ -415,7 +552,7 @@ class _StatItem extends StatelessWidget {
           const SizedBox(height: 6),
           Text(value,
               style: TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.w700, color: color)),
+                  fontSize: 18, fontWeight: FontWeight.w700, color: color)),
           Text(label,
               style: const TextStyle(
                   color: AppColors.slate500, fontSize: 11),
@@ -426,16 +563,23 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _Divider extends StatelessWidget {
+class _StatDivider extends StatelessWidget {
   @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 50, color: AppColors.slate100);
-  }
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 50, color: AppColors.slate100);
 }
 
 class _ActionsCard extends StatelessWidget {
-  final _FamilyMember member;
-  const _ActionsCard({required this.member});
+  final AppFamilyMember member;
+  final VoidCallback onBook;
+  final VoidCallback onRecords;
+  final VoidCallback onShare;
+  const _ActionsCard({
+    required this.member,
+    required this.onBook,
+    required this.onRecords,
+    required this.onShare,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -443,18 +587,20 @@ class _ActionsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Quick Actions',
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, color: AppColors.slate800, fontSize: 14)),
+          const Text('Quick Actions',
+              style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.slate800,
+                  fontSize: 14)),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: _ActionButton(
                   icon: Icons.calendar_month_rounded,
-                  label: 'Book for ${member.relation}',
+                  label: 'Book Appointment',
                   color: AppColors.patientPrimary,
-                  onTap: () {},
+                  onTap: onBook,
                 ),
               ),
               const SizedBox(width: 12),
@@ -463,7 +609,7 @@ class _ActionsCard extends StatelessWidget {
                   icon: Icons.folder_rounded,
                   label: 'View Records',
                   color: AppColors.patientSecondary,
-                  onTap: () {},
+                  onTap: onRecords,
                 ),
               ),
             ],
@@ -473,19 +619,10 @@ class _ActionsCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _ActionButton(
-                  icon: Icons.upload_file_rounded,
-                  label: 'Upload Report',
-                  color: const Color(0xFF7C3AED),
-                  onTap: () {},
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ActionButton(
                   icon: Icons.share_rounded,
                   label: 'Share Profile',
                   color: AppColors.slate500,
-                  onTap: () {},
+                  onTap: onShare,
                 ),
               ),
             ],
@@ -525,28 +662,14 @@ class _ActionButton extends StatelessWidget {
             Icon(icon, color: color, size: 22),
             const SizedBox(height: 6),
             Text(label,
-                style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center),
           ],
         ),
       ),
     );
   }
-}
-
-class _FamilyMember {
-  final String name, relation, blood, avatar;
-  final int age, visits;
-  final List<String> conditions;
-  final Color color;
-  const _FamilyMember({
-    required this.name,
-    required this.relation,
-    required this.age,
-    required this.blood,
-    required this.conditions,
-    required this.visits,
-    required this.avatar,
-    required this.color,
-  });
 }
