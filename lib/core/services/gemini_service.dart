@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 import '../config/ai_config.dart';
 
 const _base =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$geminiApiKey';
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiApiKey';
 
 const _clinicalSystem =
     'You are an AI clinical assistant for licensed doctors in India using the Doclink app. '

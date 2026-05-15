@@ -1,277 +1,251 @@
-# Graph Report - C:\Users\mulgu\Desktop\APP\Doclink  (2026-05-15)
+# Graph Report - C:\Users\mulgu\Desktop\APP\Doclink\lib  (2026-05-16)
 
 ## Corpus Check
-- Corpus is ~32,468 words - fits in a single context window. You may not need a graph.
+- Corpus is ~42,132 words - fits in a single context window. You may not need a graph.
 
 ## Summary
-- 708 nodes · 802 edges · 56 communities (45 shown, 11 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 9 edges (avg confidence: 0.93)
-- Token cost: 30,525 input · 0 output
+- 785 nodes · 944 edges · 40 communities (39 shown, 1 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
+- Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Dependencies & Config|Dependencies & Config]]
-- [[_COMMUNITY_Auth Data Layer|Auth Data Layer]]
-- [[_COMMUNITY_App Entry & Routing|App Entry & Routing]]
-- [[_COMMUNITY_Chat Consultation UI|Chat Consultation UI]]
-- [[_COMMUNITY_Patient Appointments UI|Patient Appointments UI]]
-- [[_COMMUNITY_Appointment Booking Flow|Appointment Booking Flow]]
-- [[_COMMUNITY_Theme & Auth Screens|Theme & Auth Screens]]
-- [[_COMMUNITY_Onboarding Flow|Onboarding Flow]]
-- [[_COMMUNITY_Family Profiles UI|Family Profiles UI]]
-- [[_COMMUNITY_Patient Home Dashboard|Patient Home Dashboard]]
-- [[_COMMUNITY_Patient Records UI|Patient Records UI]]
-- [[_COMMUNITY_Receptionist Reminders|Receptionist Reminders]]
+- [[_COMMUNITY_AI Assistant Screen|AI Assistant Screen]]
+- [[_COMMUNITY_App Shell & Router|App Shell & Router]]
+- [[_COMMUNITY_Core Error & Data Layer|Core Error & Data Layer]]
+- [[_COMMUNITY_Patient Booking & Payment|Patient Booking & Payment]]
+- [[_COMMUNITY_Doctor Schedule|Doctor Schedule]]
+- [[_COMMUNITY_Patient Home Screen|Patient Home Screen]]
+- [[_COMMUNITY_Family Profiles|Family Profiles]]
+- [[_COMMUNITY_Core Theme & Utilities|Core Theme & Utilities]]
 - [[_COMMUNITY_Prescription Writer|Prescription Writer]]
-- [[_COMMUNITY_Video Call UI|Video Call UI]]
-- [[_COMMUNITY_Manual Booking Flow|Manual Booking Flow]]
 - [[_COMMUNITY_Doctor Dashboard|Doctor Dashboard]]
-- [[_COMMUNITY_Queue Management|Queue Management]]
-- [[_COMMUNITY_AI Assistant UI|AI Assistant UI]]
+- [[_COMMUNITY_Patient Records|Patient Records]]
+- [[_COMMUNITY_Video & Chat Consultation|Video & Chat Consultation]]
+- [[_COMMUNITY_Receptionist Manual Booking|Receptionist Manual Booking]]
+- [[_COMMUNITY_Patient Waiting Room|Patient Waiting Room]]
+- [[_COMMUNITY_Doctor Edit Profile|Doctor Edit Profile]]
+- [[_COMMUNITY_Receptionist Reminders|Receptionist Reminders]]
+- [[_COMMUNITY_Patient Payment History|Patient Payment History]]
 - [[_COMMUNITY_Doctor Earnings|Doctor Earnings]]
-- [[_COMMUNITY_Splash & Role Selection|Splash & Role Selection]]
-- [[_COMMUNITY_Module 20|Module 20]]
-- [[_COMMUNITY_Module 21|Module 21]]
-- [[_COMMUNITY_Module 22|Module 22]]
-- [[_COMMUNITY_Module 23|Module 23]]
-- [[_COMMUNITY_Module 24|Module 24]]
-- [[_COMMUNITY_Module 25|Module 25]]
-- [[_COMMUNITY_Module 26|Module 26]]
-- [[_COMMUNITY_Module 27|Module 27]]
-- [[_COMMUNITY_Module 28|Module 28]]
-- [[_COMMUNITY_Module 29|Module 29]]
-- [[_COMMUNITY_Module 30|Module 30]]
-- [[_COMMUNITY_Module 31|Module 31]]
-- [[_COMMUNITY_Module 32|Module 32]]
-- [[_COMMUNITY_Module 33|Module 33]]
-- [[_COMMUNITY_Module 34|Module 34]]
-- [[_COMMUNITY_Module 35|Module 35]]
-- [[_COMMUNITY_Module 36|Module 36]]
-- [[_COMMUNITY_Module 37|Module 37]]
-- [[_COMMUNITY_Module 38|Module 38]]
-- [[_COMMUNITY_Module 39|Module 39]]
-- [[_COMMUNITY_Module 40|Module 40]]
-- [[_COMMUNITY_Module 41|Module 41]]
-- [[_COMMUNITY_Module 42|Module 42]]
-- [[_COMMUNITY_Module 43|Module 43]]
-- [[_COMMUNITY_Module 44|Module 44]]
-- [[_COMMUNITY_Module 45|Module 45]]
-- [[_COMMUNITY_Module 46|Module 46]]
-- [[_COMMUNITY_Module 47|Module 47]]
-- [[_COMMUNITY_Module 48|Module 48]]
-- [[_COMMUNITY_Module 49|Module 49]]
-- [[_COMMUNITY_Module 50|Module 50]]
+- [[_COMMUNITY_Patient Appointments|Patient Appointments]]
+- [[_COMMUNITY_Doctor Profile & QR|Doctor Profile & QR]]
+- [[_COMMUNITY_Patient Profile|Patient Profile]]
+- [[_COMMUNITY_Receptionist Queue Board|Receptionist Queue Board]]
+- [[_COMMUNITY_Auth Splash Screen|Auth Splash Screen]]
+- [[_COMMUNITY_Doctor Shell Navigation|Doctor Shell Navigation]]
+- [[_COMMUNITY_Patient Shell Navigation|Patient Shell Navigation]]
+- [[_COMMUNITY_Gemini AI Service|Gemini AI Service]]
+- [[_COMMUNITY_Doctor Onboarding  KYC|Doctor Onboarding / KYC]]
+- [[_COMMUNITY_Mock Data & Demo Mode|Mock Data & Demo Mode]]
+- [[_COMMUNITY_User Onboarding Screen|User Onboarding Screen]]
+- [[_COMMUNITY_Date Utilities|Date Utilities]]
+- [[_COMMUNITY_Receptionist Shell Navigation|Receptionist Shell Navigation]]
+- [[_COMMUNITY_Shell Scaffold Wrappers|Shell Scaffold Wrappers]]
+- [[_COMMUNITY_Design System (ThemeWidgets)|Design System (Theme/Widgets)]]
+- [[_COMMUNITY_Razorpay Native Payment|Razorpay Native Payment]]
+- [[_COMMUNITY_Shared Skeleton Widgets|Shared Skeleton Widgets]]
+- [[_COMMUNITY_Razorpay Web Stub|Razorpay Web Stub]]
+- [[_COMMUNITY_Empty State Widget|Empty State Widget]]
+- [[_COMMUNITY_Receptionist Shell|Receptionist Shell]]
+- [[_COMMUNITY_App Constants|App Constants]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `package:flutter/material.dart` - 42 edges
-2. `../../core/theme/app_colors.dart` - 35 edges
-3. `Doclink App` - 34 edges
-4. `../../../../core/theme/app_spacing.dart` - 19 edges
-5. `package:go_router/go_router.dart` - 15 edges
-6. `../../../../shared/widgets/dl_card.dart` - 13 edges
-7. `../../../../core/mock/mock_data.dart` - 13 edges
-8. `package:flutter_riverpod/flutter_riverpod.dart` - 10 edges
-9. `dart:async` - 6 edges
-10. `AppDelegate` - 5 edges
+1. `package:flutter/material.dart` - 43 edges
+2. `../../core/theme/app_colors.dart` - 38 edges
+3. `../../../../core/providers/app_providers.dart` - 30 edges
+4. `package:flutter_riverpod/flutter_riverpod.dart` - 28 edges
+5. `package:go_router/go_router.dart` - 18 edges
+6. `../../../../core/theme/app_spacing.dart` - 18 edges
+7. `../../../../core/services/gemini_service.dart` - 14 edges
+8. `../../../../core/error/failures.dart` - 12 edges
+9. `package:supabase_flutter/supabase_flutter.dart` - 8 edges
+10. `app.dart` - 7 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Doclink README` --references--> `Doclink App`  [INFERRED]
-  README.md → pubspec.yaml
-- `Analysis Options Config` --references--> `flutter_lints`  [EXTRACTED]
-  analysis_options.yaml → pubspec.yaml
-- `index.html Flutter Web Entry` --rationale_for--> `SPA Routing on GitHub Pages`  [INFERRED]
-  web/index.html → web/404.html
-- `404.html SPA Redirect` --references--> `index.html Flutter Web Entry`  [EXTRACTED]
-  web/404.html → web/index.html
+- `app.dart` --defines--> `DocLinkApp`  [EXTRACTED]
+  main.dart → app.dart
+- `app.dart` --defines--> `build`  [EXTRACTED]
+  main.dart → app.dart
+- `../../../../core/error/exceptions.dart` --defines--> `ServerException`  [EXTRACTED]
+  features/auth/data/repositories/auth_repo_impl.dart → core/error/exceptions.dart
+- `../../../../core/error/exceptions.dart` --defines--> `NetworkException`  [EXTRACTED]
+  features/auth/data/repositories/auth_repo_impl.dart → core/error/exceptions.dart
+- `../../../../core/error/exceptions.dart` --defines--> `AppAuthException`  [EXTRACTED]
+  features/auth/data/repositories/auth_repo_impl.dart → core/error/exceptions.dart
 
-## Hyperedges (group relationships)
-- **Riverpod State Management Ecosystem** — pubspec_flutter_riverpod, pubspec_riverpod_annotation, pubspec_hooks_riverpod, pubspec_flutter_hooks [INFERRED 0.95]
-- **Firebase Backend Suite** — pubspec_firebase_core, pubspec_firebase_messaging, pubspec_firebase_analytics [INFERRED 0.95]
-- **Media Handling Capabilities** — pubspec_image_picker, pubspec_file_picker, pubspec_pdf, pubspec_printing, pubspec_cached_network_image [INFERRED 0.85]
-- **Local Storage Layer** — pubspec_flutter_secure_storage, pubspec_shared_preferences, pubspec_flutter_dotenv [INFERRED 0.85]
-- **QR Code Feature** — pubspec_qr_flutter, pubspec_mobile_scanner [INFERRED 0.95]
-- **SPA GitHub Pages Routing Trick** — web_404html, web_indexhtml, rationale_spa_github_pages [EXTRACTED 1.00]
+## Communities (40 total, 1 thin omitted)
 
-## Communities (56 total, 11 thin omitted)
+### Community 0 - "AI Assistant Screen"
+Cohesion: 0.03
+Nodes (66): AiAssistantScreen, _AiAssistantScreenState, _AiBadge, _AiCard, _body, build, _ChatBubble, _ChatInput (+58 more)
 
-### Community 0 - "Dependencies & Config"
+### Community 1 - "App Shell & Router"
+Cohesion: 0.05
+Nodes (40): app.dart, build, DocLinkApp, ApiConstants, AppAppointment, AppDoctor, AppFamilyMember, AppMedicine (+32 more)
+
+### Community 2 - "Core Error & Data Layer"
+Cohesion: 0.05
+Nodes (38): AppAuthException, CacheException, NetworkException, ServerException, AuthFailure, CacheFailure, Failure, NetworkFailure (+30 more)
+
+### Community 3 - "Patient Booking & Payment"
 Cohesion: 0.06
-Nodes (39): Analysis Options Config, cached_network_image, connectivity_plus, dartz, dio, Doclink App, equatable, file_picker (+31 more)
+Nodes (33): PaymentConfig, BookAppointmentScreen, _BookAppointmentScreenState, build, _buildStep, Center, Column, _ConfirmStep (+25 more)
 
-### Community 1 - "Auth Data Layer"
+### Community 4 - "Doctor Schedule"
+Cohesion: 0.06
+Nodes (31): _blockEntireDay, build, Center, _clearAllBlocks, Column, Container, _dateKey, _DateStrip (+23 more)
+
+### Community 5 - "Patient Home Screen"
+Cohesion: 0.06
+Nodes (29): _ActionBtn, AppCard, build, Container, _EmptyCard, Expanded, _FamilyChip, Function (+21 more)
+
+### Community 6 - "Family Profiles"
 Cohesion: 0.07
-Nodes (26): AppAuthException, AuthRemoteDataSourceImpl, ServerException, _parseRole, toEntity, UserModel, AuthRepositoryImpl, Left (+18 more)
+Nodes (29): _ActionButton, _ActionsCard, addFamilyMember, build, Center, _colorFor, Column, _ConditionsCard (+21 more)
 
-### Community 2 - "App Entry & Routing"
+### Community 7 - "Core Theme & Utilities"
+Cohesion: 0.08
+Nodes (26): app_colors.dart, AppSpacing, AppTheme, Validators, build, dispose, initState, OtpScreen (+18 more)
+
+### Community 8 - "Prescription Writer"
 Cohesion: 0.07
-Nodes (23): app.dart, build, DocLinkApp, GoRouter, SecureStorageService, main, ../constants/api_constants.dart, core/router/app_router.dart (+15 more)
+Nodes (27): _addMedicine, _AppointmentPicker, build, _buildForm, _buildScaffold, Column, Container, copyWith (+19 more)
 
-### Community 3 - "Chat Consultation UI"
-Cohesion: 0.07
-Nodes (27): _AttachBtn, build, _ChatBubble, ChatConsultationScreen, _ChatConsultationScreenState, Column, dispose, IconButton (+19 more)
-
-### Community 4 - "Patient Appointments UI"
-Cohesion: 0.07
-Nodes (27): _AppointmentCard, _AppointmentList, build, Center, dispose, DlCard, Icon, initState (+19 more)
-
-### Community 5 - "Appointment Booking Flow"
-Cohesion: 0.07
-Nodes (26): BookAppointmentScreen, _BookAppointmentScreenState, build, _buildStep, Center, Color, Column, _ConfirmStep (+18 more)
-
-### Community 6 - "Theme & Auth Screens"
+### Community 9 - "Doctor Dashboard"
 Cohesion: 0.08
-Nodes (23): app_colors.dart, AppTheme, build, dispose, initState, OtpScreen, _OtpScreenState, _routeByRole (+15 more)
+Nodes (23): _ActionBtn, build, _buildBody, Container, DoctorDashboardScreen, _EarningsCard, _EmptyState, Expanded (+15 more)
 
-### Community 7 - "Onboarding Flow"
+### Community 10 - "Patient Records"
 Cohesion: 0.08
-Nodes (24): build, dispose, _next, _OnboardingPage, OnboardingScreen, _OnboardingScreenState, Padding, _PageContent (+16 more)
+Nodes (23): build, Center, Color, Column, dispose, Divider, DlCard, Icon (+15 more)
 
-### Community 8 - "Family Profiles UI"
-Cohesion: 0.08
-Nodes (25): _ActionButton, _ActionsCard, build, _ConditionsCard, Container, _Divider, DlCard, Expanded (+17 more)
-
-### Community 9 - "Patient Home Dashboard"
-Cohesion: 0.08
-Nodes (24): _ActionBtn, AppCard, build, Container, _EmptyCard, Expanded, _FamilyChip, Function (+16 more)
-
-### Community 10 - "Patient Records UI"
-Cohesion: 0.08
-Nodes (24): build, Column, Container, dispose, Divider, DlCard, Icon, initState (+16 more)
-
-### Community 11 - "Receptionist Reminders"
-Cohesion: 0.08
-Nodes (23): build, Center, Column, dispose, DlCard, Function, Icon, initState (+15 more)
-
-### Community 12 - "Prescription Writer"
+### Community 11 - "Video & Chat Consultation"
 Cohesion: 0.09
-Nodes (22): _addMedicine, build, Column, Container, copyWith, dispose, Divider, _DropdownField (+14 more)
+Nodes (22): Align, build, _ChatPanel, Container, _ControlBtn, dispose, _endCall, Expanded (+14 more)
 
-### Community 13 - "Video Call UI"
+### Community 12 - "Receptionist Manual Booking"
 Cohesion: 0.09
-Nodes (21): Align, build, _ChatPanel, Container, _ControlBtn, dispose, _endCall, Expanded (+13 more)
+Nodes (22): bookAppointment, build, _buildConfirmStep, _buildPatientStep, _buildSlotStep, _buildTypeStep, Column, _ConfirmRow (+14 more)
 
-### Community 14 - "Manual Booking Flow"
+### Community 13 - "Patient Waiting Room"
 Cohesion: 0.1
-Nodes (20): build, _buildConfirmStep, _buildPatientStep, _buildSlotStep, _buildTypeStep, Column, _confirmBooking, _ConfirmRow (+12 more)
+Nodes (20): build, Center, dispose, DlCard, Function, Icon, initState, _joinConsultation (+12 more)
 
-### Community 15 - "Doctor Dashboard"
+### Community 14 - "Doctor Edit Profile"
+Cohesion: 0.1
+Nodes (19): BorderSide, build, Container, dispose, DoctorEditProfileScreen, _DoctorEditProfileScreenState, Expanded, _Field (+11 more)
+
+### Community 15 - "Receptionist Reminders"
+Cohesion: 0.1
+Nodes (19): build, Center, Column, dispose, DlCard, initState, _MiniStat, _ReminderCard (+11 more)
+
+### Community 16 - "Patient Payment History"
+Cohesion: 0.1
+Nodes (18): build, Center, Color, Column, Divider, DlCard, _EmptyState, Icon (+10 more)
+
+### Community 17 - "Doctor Earnings"
+Cohesion: 0.1
+Nodes (19): BarChartGroupData, _BreakdownRow, build, _buildScaffold, Center, EarningsScreen, _EarningsScreenState, Expanded (+11 more)
+
+### Community 18 - "Patient Appointments"
+Cohesion: 0.1
+Nodes (19): _AppointmentCard, _AppointmentCardState, _AppointmentList, build, _buildScaffold, Center, Color, dispose (+11 more)
+
+### Community 19 - "Doctor Profile & QR"
 Cohesion: 0.11
-Nodes (18): _ActionBtn, build, Container, DoctorDashboardScreen, _EarningsCard, Expanded, Function, GestureDetector (+10 more)
+Nodes (18): build, _buildScaffold, Color, Column, DoctorProfileScreen, Icon, _InfoRow, Padding (+10 more)
 
-### Community 16 - "Queue Management"
+### Community 20 - "Patient Profile"
 Cohesion: 0.11
-Nodes (18): build, _callNext, Container, copyWith, dispose, initState, Opacity, QueueBoardScreen (+10 more)
+Nodes (18): build, Divider, DlCard, Expanded, _field, _HealthItem, PatientProfileScreen, _PatientProfileScreenState (+10 more)
 
-### Community 17 - "AI Assistant UI"
+### Community 21 - "Receptionist Queue Board"
 Cohesion: 0.11
-Nodes (17): AiAssistantScreen, _AiAssistantScreenState, _AiMessage, build, Column, dispose, _Dot, _DotState (+9 more)
+Nodes (18): build, _buildScreen, Container, dispose, Icon, initState, Opacity, PopupMenuItem (+10 more)
 
-### Community 18 - "Doctor Earnings"
+### Community 22 - "Auth Splash Screen"
 Cohesion: 0.12
-Nodes (16): BarChartGroupData, _BreakdownRow, build, Divider, EarningsScreen, _EarningsScreenState, ListTile, Padding (+8 more)
+Nodes (15): build, dispose, Duration, GestureDetector, initState, _LoginButton, Padding, _RoleCard (+7 more)
 
-### Community 19 - "Splash & Role Selection"
-Cohesion: 0.12
-Nodes (15): build, dispose, _enterAs, Function, GestureDetector, initState, Padding, _RoleCard (+7 more)
-
-### Community 20 - "Module 20"
+### Community 23 - "Doctor Shell Navigation"
 Cohesion: 0.13
 Nodes (14): ../../../ai/presentation/screens/ai_assistant_screen.dart, AiAssistantScreen, build, DoctorProfileScreen, DoctorShellScreen, _DoctorShellScreenState, EarningsScreen, _navigate (+6 more)
 
-### Community 21 - "Module 21"
-Cohesion: 0.13
-Nodes (14): build, _confirmCancel, dispose, Expanded, initState, ListTile, Row, Scaffold (+6 more)
-
-### Community 22 - "Module 22"
-Cohesion: 0.13
-Nodes (14): build, _confirmDeleteSlot, Divider, Expanded, GestureDetector, Icon, Scaffold, ScheduleScreen (+6 more)
-
-### Community 23 - "Module 23"
-Cohesion: 0.13
-Nodes (14): build, CircleAvatar, Color, Divider, DlCard, Expanded, _HealthItem, PatientProfileScreen (+6 more)
-
-### Community 24 - "Module 24"
+### Community 24 - "Patient Shell Navigation"
 Cohesion: 0.13
 Nodes (14): build, FamilyProfilesScreen, _navigate, PatientAppointmentsScreen, PatientProfileScreen, PatientRecordsScreen, PatientShellScreen, _PatientShellScreenState (+6 more)
 
-### Community 25 - "Module 25"
+### Community 25 - "Gemini AI Service"
+Cohesion: 0.14
+Nodes (14): dispose, DrugInfo, _extractText, GeminiService, InteractionPair, InteractionResult, RxDraft, RxDrug (+6 more)
+
+### Community 26 - "Doctor Onboarding / KYC"
+Cohesion: 0.14
+Nodes (13): _BasicInfoStep, build, _buildStep, Column, dispose, GestureDetector, KycScreen, _KycScreenState (+5 more)
+
+### Community 27 - "Mock Data & Demo Mode"
 Cohesion: 0.18
 Nodes (10): DemoModeNotifier, MockAppointment, MockChatMessage, MockData, MockDoctor, MockEarningEntry, MockMedicine, MockPatient (+2 more)
 
-### Community 26 - "Module 26"
+### Community 28 - "User Onboarding Screen"
+Cohesion: 0.18
+Nodes (10): build, dispose, _next, _OnboardingPage, OnboardingScreen, _OnboardingScreenState, Padding, _PageContent (+2 more)
+
+### Community 29 - "Date Utilities"
 Cohesion: 0.18
 Nodes (10): AppDateUtils, formatDate, formatDay, formatMonthYear, formatShort, formatTime, isSameDay, isToday (+2 more)
 
-### Community 27 - "Module 27"
-Cohesion: 0.18
-Nodes (9): AuthFailure, CacheFailure, Failure, NetworkFailure, NotFoundFailure, ServerFailure, ValidationFailure, UserEntity (+1 more)
-
-### Community 28 - "Module 28"
+### Community 30 - "Receptionist Shell Navigation"
 Cohesion: 0.2
 Nodes (9): build, _navigate, ReceptionistShellScreen, _ReceptionistShellScreenState, Scaffold, TextStyle, manual_booking_screen.dart, queue_board_screen.dart (+1 more)
 
-### Community 29 - "Module 29"
-Cohesion: 0.22
-Nodes (7): build, DlButton, SizedBox, build, Container, DlCard, ../../core/theme/app_colors.dart
+### Community 31 - "Shell Scaffold Wrappers"
+Cohesion: 0.2
+Nodes (8): build, DoctorShell, Scaffold, build, _currentIndex, PatientShell, Scaffold, package:go_router/go_router.dart
 
-### Community 30 - "Module 30"
+### Community 32 - "Design System (Theme/Widgets)"
+Cohesion: 0.22
+Nodes (8): AppColors, AppTypography, build, DlButton, SizedBox, ../../core/theme/app_colors.dart, package:flutter/material.dart, package:google_fonts/google_fonts.dart
+
+### Community 33 - "Razorpay Native Payment"
+Cohesion: 0.29
+Nodes (6): dispose, Function, init, open, RazorpayService, package:razorpay_flutter/razorpay_flutter.dart
+
+### Community 34 - "Shared Skeleton Widgets"
 Cohesion: 0.29
 Nodes (6): build, Container, DlSkeleton, DlSkeletonCard, SizedBox, package:shimmer/shimmer.dart
 
-### Community 31 - "Module 31"
+### Community 35 - "Razorpay Web Stub"
 Cohesion: 0.33
-Nodes (3): FlutterAppDelegate, FlutterImplicitEngineDelegate, AppDelegate
+Nodes (5): dispose, Function, init, open, RazorpayService
 
-### Community 32 - "Module 32"
-Cohesion: 0.33
-Nodes (4): AppColors, AppTypography, package:flutter/material.dart, package:google_fonts/google_fonts.dart
-
-### Community 33 - "Module 33"
-Cohesion: 0.4
-Nodes (4): AppAuthException, CacheException, NetworkException, ServerException
-
-### Community 34 - "Module 34"
+### Community 36 - "Empty State Widget"
 Cohesion: 0.4
 Nodes (4): build, Center, DlEmptyState, SizedBox
 
-### Community 35 - "Module 35"
-Cohesion: 0.4
-Nodes (4): build, DoctorShell, Scaffold, package:go_router/go_router.dart
-
-### Community 36 - "Module 36"
-Cohesion: 0.4
-Nodes (4): build, _currentIndex, PatientShell, Scaffold
-
-### Community 37 - "Module 37"
-Cohesion: 0.4
-Nodes (4): AppCard, build, Container, GradientCard
-
-### Community 38 - "Module 38"
+### Community 37 - "Receptionist Shell"
 Cohesion: 0.4
 Nodes (4): build, _currentIndex, ReceptionistShell, Scaffold
 
-### Community 46 - "Module 46"
-Cohesion: 1.0
-Nodes (3): SPA Routing on GitHub Pages, 404.html SPA Redirect, index.html Flutter Web Entry
-
 ## Knowledge Gaps
-- **587 isolated node(s):** `MainActivity`, `Intercept NOTIFY_DEBUGGER_ABOUT_RX_PAGES and touch the pages.`, `-registerWithRegistry`, `DocLinkApp`, `build` (+582 more)
+- **701 isolated node(s):** `DocLinkApp`, `build`, `main`, `PaymentConfig`, `ApiConstants` (+696 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `package:flutter/material.dart` connect `Module 32` to `App Entry & Routing`, `Chat Consultation UI`, `Patient Appointments UI`, `Appointment Booking Flow`, `Theme & Auth Screens`, `Onboarding Flow`, `Family Profiles UI`, `Patient Home Dashboard`, `Patient Records UI`, `Receptionist Reminders`, `Prescription Writer`, `Video Call UI`, `Manual Booking Flow`, `Doctor Dashboard`, `Queue Management`, `AI Assistant UI`, `Doctor Earnings`, `Splash & Role Selection`, `Module 20`, `Module 21`, `Module 22`, `Module 23`, `Module 24`, `Module 25`, `Module 28`, `Module 29`, `Module 30`, `Module 34`, `Module 35`, `Module 36`, `Module 37`, `Module 38`?**
-  _High betweenness centrality (0.295) - this node is a cross-community bridge._
-- **Why does `../../core/theme/app_colors.dart` connect `Module 29` to `Chat Consultation UI`, `Patient Appointments UI`, `Appointment Booking Flow`, `Theme & Auth Screens`, `Onboarding Flow`, `Family Profiles UI`, `Patient Home Dashboard`, `Patient Records UI`, `Receptionist Reminders`, `Prescription Writer`, `Video Call UI`, `Manual Booking Flow`, `Doctor Dashboard`, `Queue Management`, `AI Assistant UI`, `Doctor Earnings`, `Splash & Role Selection`, `Module 20`, `Module 21`, `Module 22`, `Module 23`, `Module 24`, `Module 28`, `Module 30`, `Module 34`, `Module 35`, `Module 36`, `Module 37`, `Module 38`?**
-  _High betweenness centrality (0.205) - this node is a cross-community bridge._
-- **Why does `../../../../core/theme/app_spacing.dart` connect `Onboarding Flow` to `Chat Consultation UI`, `Patient Appointments UI`, `Appointment Booking Flow`, `Theme & Auth Screens`, `Family Profiles UI`, `Patient Records UI`, `Receptionist Reminders`, `Prescription Writer`, `Video Call UI`, `Manual Booking Flow`, `Queue Management`, `AI Assistant UI`, `Doctor Earnings`, `Module 22`, `Module 23`?**
-  _High betweenness centrality (0.073) - this node is a cross-community bridge._
-- **What connects `MainActivity`, `Intercept NOTIFY_DEBUGGER_ABOUT_RX_PAGES and touch the pages.`, `-registerWithRegistry` to the rest of the system?**
-  _587 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Dependencies & Config` be split into smaller, more focused modules?**
-  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
-- **Should `Auth Data Layer` be split into smaller, more focused modules?**
-  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
-- **Should `App Entry & Routing` be split into smaller, more focused modules?**
-  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
+- **Why does `package:flutter/material.dart` connect `Design System (Theme/Widgets)` to `AI Assistant Screen`, `App Shell & Router`, `Patient Booking & Payment`, `Doctor Schedule`, `Patient Home Screen`, `Family Profiles`, `Core Theme & Utilities`, `Prescription Writer`, `Doctor Dashboard`, `Patient Records`, `Video & Chat Consultation`, `Receptionist Manual Booking`, `Patient Waiting Room`, `Doctor Edit Profile`, `Receptionist Reminders`, `Patient Payment History`, `Doctor Earnings`, `Patient Appointments`, `Doctor Profile & QR`, `Patient Profile`, `Receptionist Queue Board`, `Auth Splash Screen`, `Doctor Shell Navigation`, `Patient Shell Navigation`, `Doctor Onboarding / KYC`, `Mock Data & Demo Mode`, `User Onboarding Screen`, `Receptionist Shell Navigation`, `Shell Scaffold Wrappers`, `Shared Skeleton Widgets`, `Empty State Widget`, `Receptionist Shell`?**
+  _High betweenness centrality (0.284) - this node is a cross-community bridge._
+- **Why does `../../core/theme/app_colors.dart` connect `Design System (Theme/Widgets)` to `AI Assistant Screen`, `App Shell & Router`, `Patient Booking & Payment`, `Doctor Schedule`, `Patient Home Screen`, `Family Profiles`, `Core Theme & Utilities`, `Prescription Writer`, `Doctor Dashboard`, `Patient Records`, `Video & Chat Consultation`, `Receptionist Manual Booking`, `Patient Waiting Room`, `Doctor Edit Profile`, `Receptionist Reminders`, `Patient Payment History`, `Doctor Earnings`, `Patient Appointments`, `Doctor Profile & QR`, `Patient Profile`, `Receptionist Queue Board`, `Auth Splash Screen`, `Doctor Shell Navigation`, `Patient Shell Navigation`, `Doctor Onboarding / KYC`, `User Onboarding Screen`, `Receptionist Shell Navigation`, `Shell Scaffold Wrappers`, `Shared Skeleton Widgets`, `Empty State Widget`, `Receptionist Shell`?**
+  _High betweenness centrality (0.232) - this node is a cross-community bridge._
+- **Why does `package:flutter_riverpod/flutter_riverpod.dart` connect `App Shell & Router` to `Core Error & Data Layer`, `Patient Booking & Payment`, `Patient Home Screen`, `Family Profiles`, `Core Theme & Utilities`, `Prescription Writer`, `Doctor Dashboard`, `Patient Records`, `Receptionist Manual Booking`, `Patient Waiting Room`, `Doctor Edit Profile`, `Receptionist Reminders`, `Patient Payment History`, `Doctor Earnings`, `Patient Appointments`, `Doctor Profile & QR`, `Patient Profile`, `Receptionist Queue Board`, `Doctor Onboarding / KYC`?**
+  _High betweenness centrality (0.111) - this node is a cross-community bridge._
+- **What connects `DocLinkApp`, `build`, `main` to the rest of the system?**
+  _701 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `AI Assistant Screen` be split into smaller, more focused modules?**
+  _Cohesion score 0.03 - nodes in this community are weakly interconnected._
+- **Should `App Shell & Router` be split into smaller, more focused modules?**
+  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+- **Should `Core Error & Data Layer` be split into smaller, more focused modules?**
+  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
