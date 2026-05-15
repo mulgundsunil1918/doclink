@@ -941,6 +941,42 @@ Future<void> updatePatientProfile({
   }
 }
 
+Future<void> updateDoctorProfile({
+  required String uid,
+  String? name,
+  String? phone,
+  String? specialty,
+  String? registrationNo,
+  String? city,
+  String? clinicName,
+  String? bio,
+  String? whatsappNumber,
+  String? upiId,
+  double? consultationFee,
+  bool? available,
+}) async {
+  final profileMap = <String, dynamic>{};
+  if (name != null) profileMap['name'] = name;
+  if (phone != null) profileMap['phone'] = phone;
+  if (profileMap.isNotEmpty) {
+    await _db.from('profiles').update(profileMap).eq('id', uid);
+  }
+
+  final docMap = <String, dynamic>{};
+  if (specialty != null) docMap['specialty'] = specialty;
+  if (registrationNo != null) docMap['registration_no'] = registrationNo;
+  if (city != null) docMap['city'] = city;
+  if (clinicName != null) docMap['clinic_name'] = clinicName;
+  if (bio != null) docMap['bio'] = bio;
+  if (whatsappNumber != null) docMap['whatsapp_number'] = whatsappNumber;
+  if (upiId != null) docMap['upi_id'] = upiId;
+  if (consultationFee != null) docMap['consultation_fee'] = consultationFee;
+  if (available != null) docMap['available'] = available;
+  if (docMap.isNotEmpty) {
+    await _db.from('doctors').update(docMap).eq('id', uid);
+  }
+}
+
 Future<void> updateDoctorUpiId(String upiId) async {
   final uid = _uid;
   if (uid == null) return;
