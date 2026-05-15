@@ -125,7 +125,7 @@ Advice:
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.doctorSurface,
+      backgroundColor: AppColors.darkBg,
       appBar: AppBar(
         title: Row(
           children: [
@@ -161,7 +161,7 @@ Advice:
         children: [
           // Mode selector
           Container(
-            color: AppColors.doctorCard,
+            color: AppColors.darkCard,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: List.generate(
@@ -207,7 +207,7 @@ Advice:
           // Quick prompts
           if (_messages.length <= 1)
             Container(
-              color: AppColors.doctorCard,
+              color: AppColors.darkCard,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -246,7 +246,7 @@ Advice:
           ),
           // Input
           Container(
-            color: AppColors.doctorCard,
+            color: AppColors.darkCard,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             child: Row(
               children: [
@@ -258,7 +258,7 @@ Advice:
                       hintText: 'Ask AI anything...',
                       hintStyle: const TextStyle(color: AppColors.slate500),
                       filled: true,
-                      fillColor: AppColors.doctorSurface,
+                      fillColor: AppColors.darkBg,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,

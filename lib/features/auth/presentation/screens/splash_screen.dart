@@ -13,6 +13,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnim;
+  late Animation<double> _scaleAnim;
   bool _showRoleSelector = false;
 
   @override
@@ -23,6 +24,9 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 900),
     );
     _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
+    _scaleAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
     _controller.forward();
     Future.delayed(const Duration(milliseconds: 1800), () {
       if (mounted) setState(() => _showRoleSelector = true);
@@ -39,65 +43,105 @@ class _SplashScreenState extends State<SplashScreen>
     demoMode.setRole(role);
     switch (role) {
       case DemoRole.doctor:
-        context.go('/doctor/home');
+        context.go('/doctor');
       case DemoRole.patient:
-        context.go('/patient/home');
+        context.go('/patient');
       case DemoRole.receptionist:
-        context.go('/receptionist/queue');
+        context.go('/receptionist');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.doctorSurface,
-      body: FadeTransition(
-        opacity: _fadeAnim,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.doctorPrimary,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(
-                  Icons.medical_services_rounded,
-                  color: Colors.white,
-                  size: 44,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Doclink',
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Your digital practice. Your rules.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.slate400,
-                    ),
-              ),
-              const SizedBox(height: 60),
-              if (!_showRoleSelector)
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.doctorAccent,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0F172A), Color(0xFF1E3A5F), Color(0xFF1E40AF)],
+          ),
+        ),
+        child: SafeArea(
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: Column(
+              children: [
+                const Spacer(),
+                ScaleTransition(
+                  scale: _scaleAnim,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.medical_services_rounded,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'MedLink',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 36,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Your digital health companion',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
                   ),
-                )
-              else
-                _RoleSelector(onSelect: _enterAs),
-            ],
+                ),
+                const Spacer(),
+                if (!_showRoleSelector)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 60),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: AppColors.primary.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text('Loading...',
+                            style: TextStyle(color: Colors.white38, fontSize: 12)),
+                      ],
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                    child: _RoleSelector(onSelect: _enterAs),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -111,40 +155,37 @@ class _RoleSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        children: [
-          const Text(
-            'Continue as',
-            style: TextStyle(color: AppColors.slate400, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          _RoleButton(
-            label: 'Doctor',
-            subtitle: 'Dr. Arjun Mehta',
-            icon: Icons.medical_services_rounded,
-            color: AppColors.doctorAccent,
-            onTap: () => onSelect(DemoRole.doctor),
-          ),
-          const SizedBox(height: 10),
-          _RoleButton(
-            label: 'Patient',
-            subtitle: 'Riya Sharma',
-            icon: Icons.person_rounded,
-            color: AppColors.patientPrimary,
-            onTap: () => onSelect(DemoRole.patient),
-          ),
-          const SizedBox(height: 10),
-          _RoleButton(
-            label: 'Receptionist',
-            subtitle: 'Clinic Staff',
-            icon: Icons.support_agent_rounded,
-            color: const Color(0xFF7C3AED),
-            onTap: () => onSelect(DemoRole.receptionist),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        const Text(
+          'Demo — continue as',
+          style: TextStyle(color: Colors.white54, fontSize: 13),
+        ),
+        const SizedBox(height: 16),
+        _RoleButton(
+          label: 'Doctor',
+          subtitle: 'Dr. Arjun Mehta · General Physician',
+          icon: Icons.local_hospital_rounded,
+          color: AppColors.primary,
+          onTap: () => onSelect(DemoRole.doctor),
+        ),
+        const SizedBox(height: 10),
+        _RoleButton(
+          label: 'Patient',
+          subtitle: 'Riya Sharma · 28 yrs',
+          icon: Icons.person_rounded,
+          color: AppColors.accent,
+          onTap: () => onSelect(DemoRole.patient),
+        ),
+        const SizedBox(height: 10),
+        _RoleButton(
+          label: 'Receptionist',
+          subtitle: 'Clinic Staff · MedLink Clinic',
+          icon: Icons.support_agent_rounded,
+          color: const Color(0xFF7C3AED),
+          onTap: () => onSelect(DemoRole.receptionist),
+        ),
+      ],
     );
   }
 }
@@ -167,33 +208,37 @@ class _RoleButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
         ),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: Icon(icon, color: color, size: 22),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label,
                       style: TextStyle(
-                          color: color, fontWeight: FontWeight.w700, fontSize: 15)),
+                          color: color,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16)),
+                  const SizedBox(height: 2),
                   Text(subtitle,
-                      style: const TextStyle(color: AppColors.slate400, fontSize: 12)),
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 12)),
                 ],
               ),
             ),

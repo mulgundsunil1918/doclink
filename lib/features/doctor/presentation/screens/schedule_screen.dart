@@ -135,7 +135,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   void _showAddSlotDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.doctorCard,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -155,7 +155,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                          '14:00', '14:30', '15:00', '15:30', '17:00', '17:30']
                   .map((t) => ActionChip(
                         label: Text(t, style: const TextStyle(fontSize: 12)),
-                        backgroundColor: AppColors.slate800,
+                        backgroundColor: AppColors.primaryLight,
                         onPressed: () {
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -176,7 +176,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppColors.doctorCard,
+        backgroundColor: AppColors.surface,
         title: Text('Block slot $time?'),
         content: Text('This will prevent new bookings for $_selectedDay $time.',
             style: const TextStyle(color: AppColors.slate400)),
@@ -240,11 +240,11 @@ class _SlotChip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: isBooked
-              ? AppColors.doctorPrimary.withValues(alpha: 0.15)
-              : AppColors.slate800,
+              ? AppColors.primaryLight
+              : AppColors.surface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isBooked ? AppColors.doctorPrimary : AppColors.slate700,
+            color: isBooked ? AppColors.primary : AppColors.border,
             width: isBooked ? 1.5 : 0.5,
           ),
         ),
@@ -256,7 +256,7 @@ class _SlotChip extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: isBooked ? AppColors.doctorPrimary : Colors.white,
+                  color: isBooked ? AppColors.primary : AppColors.textSecondary,
                 )),
             if (isBooked)
               const Text('Booked',

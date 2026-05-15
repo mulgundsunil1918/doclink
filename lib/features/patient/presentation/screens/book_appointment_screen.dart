@@ -3,8 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/mock/mock_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../shared/widgets/dl_card.dart';
-
 class BookAppointmentScreen extends StatefulWidget {
   const BookAppointmentScreen({super.key});
   @override

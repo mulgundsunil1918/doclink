@@ -45,7 +45,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.history_rounded, color: AppColors.patientPrimary),
-            onPressed: () => context.push('/patient/appointments/payments'),
+            onPressed: () {},
           ),
         ],
         bottom: TabBar(
@@ -69,7 +69,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/patient/home/book'),
+        onPressed: () => context.push('/patient/book'),
         backgroundColor: AppColors.patientPrimary,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Book New'),
@@ -236,11 +236,11 @@ class _AppointmentCard extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       if (apt.type == 'video') {
-                        context.push('/patient/home/video-call');
+                        context.push('/patient/video-call');
                       } else if (apt.type == 'chat') {
-                        context.push('/patient/home/chat');
+                        context.push('/patient/chat');
                       } else {
-                        context.push('/patient/home/waiting-room');
+                        context.push('/patient/waiting-room');
                       }
                     },
                     icon: Icon(_typeIcon, size: 14),

@@ -333,7 +333,7 @@ class _BreakdownRow extends StatelessWidget {
           const SizedBox(height: 6),
           LinearProgressIndicator(
             value: pct,
-            backgroundColor: AppColors.slate800,
+            backgroundColor: AppColors.slate200,
             valueColor: AlwaysStoppedAnimation(color),
             minHeight: 4,
             borderRadius: BorderRadius.circular(2),
@@ -359,14 +359,14 @@ class _TaxRow extends StatelessWidget {
           Expanded(
             child: Text(label,
                 style: TextStyle(
-                  color: bold ? Colors.white : AppColors.slate400,
+                  color: bold ? AppColors.textPrimary : AppColors.textMuted,
                   fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
                   fontSize: 13,
                 )),
           ),
           Text(value,
               style: TextStyle(
-                color: color ?? Colors.white,
+                color: color ?? AppColors.textPrimary,
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
                 fontSize: 13,
               )),

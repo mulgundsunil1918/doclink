@@ -235,9 +235,9 @@ class _Stat extends StatelessWidget {
       children: [
         Text(value,
             style: const TextStyle(
-                fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
+                fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
         Text(label,
-            style: const TextStyle(fontSize: 11, color: AppColors.slate400)),
+            style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
       ],
     );
   }
