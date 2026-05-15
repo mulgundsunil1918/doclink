@@ -100,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: 22),
                       const Text(
-                        'MedLink',
+                        'Doclink',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 38,
@@ -209,7 +209,7 @@ class _RoleSelector extends StatelessWidget {
           _RoleCard(
             label: 'Receptionist',
             name: 'Clinic Staff',
-            subtitle: 'MedLink Clinic · Front Desk',
+            subtitle: 'Doclink Clinic · Front Desk',
             icon: Icons.support_agent_rounded,
             gradientColors: const [Color(0xFF4C1D95), Color(0xFF7C3AED)],
             glowColor: const Color(0xFF7C3AED),

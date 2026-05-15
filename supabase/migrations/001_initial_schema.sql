@@ -1,4 +1,4 @@
--- MedLink initial schema
+-- Doclink initial schema
 -- Run this entire file in Supabase SQL Editor → New Query → Run
 
 -- ── Extensions ────────────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ class DocLinkApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     return MaterialApp.router(
-      title: 'MedLink',
+      title: 'Doclink',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       routerConfig: router,
