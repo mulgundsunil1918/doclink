@@ -1,0 +1,28 @@
+flutter_launcher_icons:
+  # Source image — drop your 1080x1080 PNG here
+  image_path: "assets/images/app_icon.png"
+
+  # Android
+  android: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#7B2FF7"   # purple from your gradient
+  adaptive_icon_foreground: "assets/images/app_icon.png"
+
+  # iOS
+  ios: true
+  remove_alpha_ios: true
+
+  # Web
+  web:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+    background_color: "#7B2FF7"
+    theme_color: "#7B2FF7"
+
+  # Windows (optional — skip if not targeting)
+  windows:
+    generate: false
+
+  # macOS (optional)
+  macos:
+    generate: false
