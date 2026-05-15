@@ -49,6 +49,16 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Permission descriptions required by App Store / iOS runtime -->
+	<key>NSCameraUsageDescription</key>
+	<string>Doclink uses your camera for video consultations and scanning QR codes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Doclink uses your microphone for audio and video consultations.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Doclink accesses your photo library to upload profile pictures and documents.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Doclink saves prescriptions and documents to your photo library.</string>
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
