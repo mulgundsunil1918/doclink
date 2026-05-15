@@ -1,6 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -183,7 +185,7 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
                   ),
                   ElevatedButton(
                     onPressed: walletBalance > 0
-                        ? () => _showWithdrawSheet(context, walletBalance)
+                        ? () => _showWithdrawSheet(context, walletBalance, doc)
                         : null,
                     style: ElevatedButton.styleFrom(
                         minimumSize: const Size(100, 40)),
@@ -349,7 +351,10 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
     );
   }
 
-  void _showWithdrawSheet(BuildContext context, double balance) {
+  void _showWithdrawSheet(BuildContext context, double balance, AppDoctor? doc) {
+    final upiId = doc?.upiId;
+    final doctorName = doc?.name ?? 'Doctor';
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.doctorCard,
@@ -361,36 +366,128 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Withdraw Earnings',
+            Text('Withdraw ₹${balance.toStringAsFixed(0)}',
                 style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             const Text(
-                'Withdrawal will be processed to your registered bank account.',
-                style:
-                    TextStyle(color: AppColors.slate500, fontSize: 13)),
+              'Your earnings will be sent to your UPI ID.',
+              style: TextStyle(color: AppColors.slate500, fontSize: 13),
+            ),
             const SizedBox(height: 20),
-            Text(
-              'Amount: ₹${balance.toStringAsFixed(0)}',
-              style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.doctorAccent),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text(
-                            'Withdrawal of ₹${balance.toStringAsFixed(0)} initiated. T+1 business day.')),
-                  );
-                },
-                child: Text('Confirm — ₹${balance.toStringAsFixed(0)}'),
+
+            if (upiId != null) ...[
+              // UPI ID display
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.doctorAccent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: AppColors.doctorAccent.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.currency_rupee_rounded,
+                        color: AppColors.doctorAccent, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('UPI ID',
+                              style: TextStyle(
+                                  color: AppColors.slate400, fontSize: 11)),
+                          Text(upiId,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy_rounded,
+                          size: 20, color: AppColors.slate400),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: upiId));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('UPI ID copied to clipboard')),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+
+              // Open UPI app button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.parse(
+                      'upi://pay?pa=${Uri.encodeComponent(upiId)}'
+                      '&pn=${Uri.encodeComponent('Dr $doctorName')}'
+                      '&am=${balance.toStringAsFixed(2)}'
+                      '&cu=INR'
+                      '&tn=${Uri.encodeComponent('Doclink Payout')}',
+                    );
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'No UPI app found. Please copy the UPI ID and pay manually.'),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: Text('Pay ₹${balance.toStringAsFixed(0)} via UPI App'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.doctorAccent,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Center(
+                child: Text(
+                  'Opens PhonePe · GPay · Paytm · any UPI app',
+                  style:
+                      TextStyle(color: AppColors.slate400, fontSize: 11),
+                ),
+              ),
+            ] else ...[
+              // No UPI ID set
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded,
+                        color: AppColors.warning),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'No UPI ID saved. Go to My Profile → UPI Payout ID to add it.',
+                        style: TextStyle(fontSize: 13, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -16,12 +16,12 @@ class DoctorProfileScreen extends ConsumerWidget {
     return doctorAsync.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (_, __) => _buildScaffold(context, null),
-      data: (doc) => _buildScaffold(context, doc),
+      error: (_, __) => _buildScaffold(context, ref, null),
+      data: (doc) => _buildScaffold(context, ref, doc),
     );
   }
 
-  Widget _buildScaffold(BuildContext context, AppDoctor? doc) {
+  Widget _buildScaffold(BuildContext context, WidgetRef ref, AppDoctor? doc) {
     final initials = doc?.initials ?? 'DR';
     final qrData =
         'https://doclink.app/doc/${doc?.id ?? 'unknown'}';
@@ -242,16 +242,175 @@ class DoctorProfileScreen extends ConsumerWidget {
                   Text('Registration Details',
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 12),
-                  _InfoRow('Reg. Number',
-                      doc?.registrationNo ?? '—'),
-                  _InfoRow('Specialty',
-                      doc?.specialty ?? '—'),
+                  _InfoRow('Reg. Number', doc?.registrationNo ?? '—'),
+                  _InfoRow('Specialty', doc?.specialty ?? '—'),
                   if (doc?.city != null) _InfoRow('Location', doc!.city!),
                   if (doc?.clinicName != null)
                     _InfoRow('Clinic', doc!.clinicName!),
                   _InfoRow('KYC Status',
                       doc?.kycVerified == true ? 'Verified ✓' : 'Pending'),
                 ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // UPI ID card
+            DlCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.account_balance_wallet_rounded,
+                          color: AppColors.doctorAccent, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text('UPI Payout ID',
+                            style: Theme.of(context).textTheme.titleMedium),
+                      ),
+                      TextButton.icon(
+                        onPressed: () =>
+                            _showUpiEditSheet(context, ref, doc?.upiId),
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: Text(doc?.upiId == null ? 'Add' : 'Edit'),
+                        style: TextButton.styleFrom(
+                            foregroundColor: AppColors.doctorPrimary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  if (doc?.upiId != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.doctorAccent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: AppColors.doctorAccent.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.currency_rupee_rounded,
+                              size: 16, color: AppColors.doctorAccent),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              doc!.upiId!,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.slate800,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.copy_rounded,
+                                size: 18, color: AppColors.slate400),
+                            onPressed: () {
+                              Clipboard.setData(
+                                  ClipboardData(text: doc.upiId!));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('UPI ID copied')),
+                              );
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Patients\' payments will be routed to this UPI ID when you withdraw.',
+                      style: TextStyle(
+                          color: AppColors.slate400,
+                          fontSize: 11,
+                          height: 1.4),
+                    ),
+                  ] else
+                    const Text(
+                      'Add your UPI ID so you can receive payouts directly to your bank.',
+                      style: TextStyle(
+                          color: AppColors.slate400,
+                          fontSize: 12,
+                          height: 1.4),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showUpiEditSheet(
+      BuildContext context, WidgetRef ref, String? current) {
+    final ctrl = TextEditingController(text: current ?? '');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Your UPI ID',
+                style:
+                    TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            const Text(
+              'Enter your UPI ID (e.g. name@paytm, 9876543210@ybl)',
+              style:
+                  TextStyle(color: AppColors.slate500, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'yourname@paytm',
+                prefixIcon: const Icon(Icons.currency_rupee_rounded,
+                    color: AppColors.doctorAccent),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                      color: AppColors.doctorPrimary, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final upi = ctrl.text.trim();
+                  if (upi.isEmpty) return;
+                  await updateDoctorUpiId(upi);
+                  ref.invalidate(currentDoctorProvider);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('UPI ID saved successfully')),
+                    );
+                  }
+                },
+                child: const Text('Save UPI ID'),
               ),
             ),
           ],

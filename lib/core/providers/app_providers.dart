@@ -33,7 +33,7 @@ class AppProfile {
 class AppDoctor {
   final String id, name, specialty;
   final String? phone, city, clinicName, registrationNo, whatsappNumber, bio,
-      avatarUrl;
+      avatarUrl, upiId;
   final double consultationFee, rating, earningsToday, earningsMonth;
   final int totalPatients;
   final bool available, kycVerified;
@@ -48,6 +48,7 @@ class AppDoctor {
     this.whatsappNumber,
     this.bio,
     this.avatarUrl,
+    this.upiId,
     required this.consultationFee,
     required this.rating,
     required this.earningsToday,
@@ -69,6 +70,7 @@ class AppDoctor {
       registrationNo: doc['registration_no'] as String?,
       whatsappNumber: doc['whatsapp_number'] as String?,
       bio: doc['bio'] as String?,
+      upiId: doc['upi_id'] as String?,
       consultationFee: (doc['consultation_fee'] as num? ?? 500).toDouble(),
       rating: (doc['rating'] as num? ?? 0).toDouble(),
       earningsToday: (doc['earnings_today'] as num? ?? 0).toDouble(),
@@ -937,6 +939,12 @@ Future<void> updatePatientProfile({
   if (patMap.isNotEmpty) {
     await _db.from('patients').update(patMap).eq('id', uid);
   }
+}
+
+Future<void> updateDoctorUpiId(String upiId) async {
+  final uid = _uid;
+  if (uid == null) return;
+  await _db.from('doctors').update({'upi_id': upiId}).eq('id', uid);
 }
 
 Future<void> savePayment({
