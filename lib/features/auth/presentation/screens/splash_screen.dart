@@ -181,6 +181,7 @@ class _LoginButton extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
       child: Column(
         children: [
+          // Primary login button
           GestureDetector(
             onTap: () => context.go('/login'),
             child: Container(
@@ -218,12 +219,175 @@ class _LoginButton extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+
+          // Skip option
+          GestureDetector(
+            onTap: () => _showRolePicker(context),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white12),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.explore_rounded,
+                      color: Colors.white38, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'Explore without login',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 20),
           const Text(
             'India\'s trusted telemedicine platform',
             style: TextStyle(color: Colors.white24, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showRolePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F1F4E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Explore as…',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'No login required — data may be limited',
+              style: TextStyle(color: Colors.white38, fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+            _RoleCard(
+              icon: Icons.local_hospital_rounded,
+              label: 'Doctor',
+              subtitle: 'Dashboard · Schedule · Earnings · AI',
+              color: const Color(0xFF3B82F6),
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/doctor');
+              },
+            ),
+            const SizedBox(height: 12),
+            _RoleCard(
+              icon: Icons.person_rounded,
+              label: 'Patient',
+              subtitle: 'Home · Book Appointment · Records · AI',
+              color: const Color(0xFF10B981),
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/patient');
+              },
+            ),
+            const SizedBox(height: 12),
+            _RoleCard(
+              icon: Icons.admin_panel_settings_rounded,
+              label: 'Receptionist',
+              subtitle: 'Queue Board · Manual Booking · Reminders',
+              color: const Color(0xFFF59E0B),
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/receptionist');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  final IconData icon;
+  final String label, subtitle;
+  final Color color;
+  final VoidCallback onTap;
+  const _RoleCard({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 11)),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded,
+                color: color.withValues(alpha: 0.6), size: 16),
+          ],
+        ),
       ),
     );
   }
