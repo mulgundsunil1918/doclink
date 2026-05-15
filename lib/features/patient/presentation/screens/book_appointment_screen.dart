@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -585,7 +586,7 @@ class _PaymentStep extends StatefulWidget {
 }
 
 class _PaymentStepState extends State<_PaymentStep> {
-  late final Razorpay _razorpay;
+  Razorpay? _razorpay;
   bool _paying = false;
 
   static const _feeMultiplier = {
@@ -598,15 +599,17 @@ class _PaymentStepState extends State<_PaymentStep> {
   @override
   void initState() {
     super.initState();
-    _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _onError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _onExternalWallet);
+    if (!kIsWeb) {
+      _razorpay = Razorpay();
+      _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onSuccess);
+      _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _onError);
+      _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _onExternalWallet);
+    }
   }
 
   @override
   void dispose() {
-    _razorpay.clear();
+    _razorpay?.clear();
     super.dispose();
   }
 
@@ -614,20 +617,22 @@ class _PaymentStepState extends State<_PaymentStep> {
       widget.doctorFee * (_feeMultiplier[widget.type] ?? 1.0);
 
   void _openCheckout() {
+    if (kIsWeb) {
+      // Web: skip Razorpay native SDK, book directly (demo/preview mode)
+      widget.onPay('web_demo_${DateTime.now().millisecondsSinceEpoch}', 'web');
+      return;
+    }
     setState(() => _paying = true);
     final options = {
       'key': PaymentConfig.razorpayKeyId,
-      'amount': (_fee * 100).toInt(), // paise
+      'amount': (_fee * 100).toInt(),
       'name': PaymentConfig.appName,
       'description': '${widget.type} Consultation · Dr. ${widget.doctorName}',
       'currency': PaymentConfig.currency,
-      'prefill': {
-        'contact': widget.patientPhone ?? '',
-      },
+      'prefill': {'contact': widget.patientPhone ?? ''},
       'theme': {'color': '#4F46E5'},
-      'modal': {'ondismiss': null},
     };
-    _razorpay.open(options);
+    _razorpay!.open(options);
   }
 
   void _onSuccess(PaymentSuccessResponse response) {
@@ -753,9 +758,11 @@ class _PaymentStepState extends State<_PaymentStep> {
                   children: [
                     const Icon(Icons.payment_rounded, size: 20),
                     const SizedBox(width: 8),
-                    Text('Pay ₹$fee · Razorpay',
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(
+                      kIsWeb ? 'Confirm Booking' : 'Pay ₹$fee · Razorpay',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
         ),
