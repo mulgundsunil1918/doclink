@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
 
-const _kWeekSlots = {
-  'Mon': ['09:00','09:30','10:00','10:30','11:00','14:00','14:30','15:00','16:00','16:30'],
-  'Tue': ['09:00','09:30','10:00','11:00','14:00','15:00','15:30','16:00'],
-  'Wed': ['09:30','10:00','10:30','11:00','14:30','15:00','16:00','17:00'],
-  'Thu': ['09:00','10:00','11:00','14:00','15:00','16:30','17:00'],
-  'Fri': ['09:00','09:30','10:00','10:30','14:00','14:30','15:00'],
-  'Sat': ['09:00','09:30','10:00','10:30','11:00'],
-  'Sun': <String>[],
-};
+// ── Data model ────────────────────────────────────────────────────────────────
 
-const _kBookedSlots = {
-  'Mon': ['09:00','10:30','14:30'],
-  'Tue': ['09:30','15:00'],
-  'Wed': ['10:00','14:30'],
-  'Thu': ['09:00','15:00'],
-  'Fri': ['09:30','14:00'],
-  'Sat': ['09:00'],
-  'Sun': <String>[],
-};
+enum SlotStatus { available, booked, blocked }
+
+class _Slot {
+  final String time;
+  SlotStatus status;
+  _Slot(this.time, {this.status = SlotStatus.available});
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+String _dateKey(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+List<_Slot> _defaultSlots() => [
+      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+      '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+    ].map(_Slot.new).toList();
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -30,186 +31,342 @@ class ScheduleScreen extends StatefulWidget {
 }
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
-  String _selectedDay = 'Mon';
-  final _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  late DateTime _selectedDate;
+  late final List<DateTime> _dates;
+
+  // per-date availability toggle (true = open, false = day off)
+  final Map<String, bool> _dayOpen = {};
+  // per-date slot lists
+  final Map<String, List<_Slot>> _slotMap = {};
+
+  final _dateScrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    final today = DateTime.now();
+    _selectedDate = today;
+    _dates = List.generate(31, (i) => today.add(Duration(days: i)));
+    // seed today open with default slots
+    _dayOpen[_dateKey(today)] = true;
+    _slotMap[_dateKey(today)] = _defaultSlots();
+  }
+
+  @override
+  void dispose() {
+    _dateScrollCtrl.dispose();
+    super.dispose();
+  }
+
+  String get _key => _dateKey(_selectedDate);
+
+  bool get _isOpen => _dayOpen[_key] ?? false;
+  List<_Slot> get _slots => _slotMap[_key] ?? [];
+
+  void _toggleDay(bool val) {
+    setState(() {
+      _dayOpen[_key] = val;
+      if (val && (_slotMap[_key] == null || _slotMap[_key]!.isEmpty)) {
+        _slotMap[_key] = _defaultSlots();
+      }
+    });
+  }
+
+  void _toggleSlot(_Slot slot) {
+    if (slot.status == SlotStatus.booked) {
+      // tapping booked slot → navigate to appointment
+      context.push('/doctor/appointment/demo');
+      return;
+    }
+    setState(() {
+      slot.status = slot.status == SlotStatus.available
+          ? SlotStatus.blocked
+          : SlotStatus.available;
+    });
+  }
+
+  Future<void> _addSlot() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 9, minute: 0),
+      builder: (ctx, child) => MediaQuery(
+        data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    final timeStr =
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+
+    setState(() {
+      final list = _slotMap[_key] ??= [];
+      if (list.any((s) => s.time == timeStr)) return;
+      list.add(_Slot(timeStr));
+      list.sort((a, b) => a.time.compareTo(b.time));
+    });
+  }
+
+  void _blockEntireDay() {
+    setState(() {
+      final list = _slotMap[_key];
+      if (list == null) return;
+      for (final s in list) {
+        if (s.status == SlotStatus.available) s.status = SlotStatus.blocked;
+      }
+    });
+  }
+
+  void _clearAllBlocks() {
+    setState(() {
+      final list = _slotMap[_key];
+      if (list == null) return;
+      for (final s in list) {
+        if (s.status == SlotStatus.blocked) s.status = SlotStatus.available;
+      }
+    });
+  }
+
+  // Split slots into morning / afternoon / evening
+  Map<String, List<_Slot>> get _grouped {
+    final morning = <_Slot>[];
+    final afternoon = <_Slot>[];
+    final evening = <_Slot>[];
+    for (final s in _slots) {
+      final h = int.parse(s.time.split(':')[0]);
+      if (h < 12) {
+        morning.add(s);
+      } else if (h < 17) {
+        afternoon.add(s);
+      } else {
+        evening.add(s);
+      }
+    }
+    return {'Morning': morning, 'Afternoon': afternoon, 'Evening': evening};
+  }
 
   @override
   Widget build(BuildContext context) {
-    final slots = _kWeekSlots[_selectedDay] ?? [];
-    final booked = _kBookedSlots[_selectedDay] ?? [];
+    final avail = _slots.where((s) => s.status == SlotStatus.available).length;
+    final booked = _slots.where((s) => s.status == SlotStatus.booked).length;
+    final blocked = _slots.where((s) => s.status == SlotStatus.blocked).length;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
-        title: const Text('Schedule & Slots'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text('My Schedule',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline_rounded),
-            onPressed: _showAddSlotDialog,
-          ),
+          if (_isOpen)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              onSelected: (v) {
+                if (v == 'block_all') _blockEntireDay();
+                if (v == 'unblock_all') _clearAllBlocks();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: 'block_all',
+                    child: Text('Block all available slots')),
+                PopupMenuItem(
+                    value: 'unblock_all',
+                    child: Text('Unblock all blocked slots')),
+              ],
+            ),
         ],
       ),
       body: Column(
         children: [
-          // Day picker
-          Container(
-            color: AppColors.doctorCard,
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-            child: Row(
-              children: _days.map((d) {
-                final sel = d == _selectedDay;
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selectedDay = d),
+          // ── Date strip ─────────────────────────────────────────────────────
+          _DateStrip(
+            dates: _dates,
+            selected: _selectedDate,
+            slotMap: _slotMap,
+            dayOpen: _dayOpen,
+            scrollCtrl: _dateScrollCtrl,
+            onSelect: (d) {
+              setState(() => _selectedDate = d);
+              // Auto-open day if it was never configured
+              if (_dayOpen[_dateKey(d)] == null) {
+                _dayOpen[_dateKey(d)] = true;
+                _slotMap[_dateKey(d)] = _defaultSlots();
+              }
+            },
+          ),
+
+          // ── Open/closed toggle ─────────────────────────────────────────────
+          _DayToggle(
+            date: _selectedDate,
+            isOpen: _isOpen,
+            onChanged: _toggleDay,
+            available: avail,
+            booked: booked,
+            blocked: blocked,
+          ),
+
+          // ── Slots ──────────────────────────────────────────────────────────
+          Expanded(
+            child: !_isOpen
+                ? _DayOffPlaceholder(
+                    onOpen: () => _toggleDay(true),
+                  )
+                : _slots.isEmpty
+                    ? _EmptySlots(onAdd: _addSlot)
+                    : _SlotList(
+                        grouped: _grouped,
+                        onToggle: _toggleSlot,
+                      ),
+          ),
+        ],
+      ),
+      floatingActionButton: _isOpen
+          ? FloatingActionButton.extended(
+              onPressed: _addSlot,
+              backgroundColor: AppColors.doctorPrimary,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text('Add Time Slot',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            )
+          : null,
+    );
+  }
+}
+
+// ── Date strip ────────────────────────────────────────────────────────────────
+
+class _DateStrip extends StatelessWidget {
+  final List<DateTime> dates;
+  final DateTime selected;
+  final Map<String, List<_Slot>> slotMap;
+  final Map<String, bool> dayOpen;
+  final ScrollController scrollCtrl;
+  final ValueChanged<DateTime> onSelect;
+
+  const _DateStrip({
+    required this.dates,
+    required this.selected,
+    required this.slotMap,
+    required this.dayOpen,
+    required this.scrollCtrl,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const months = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    const days = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    return Container(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              '${months[selected.month]} ${selected.year}',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.slate600),
+            ),
+          ),
+          SizedBox(
+            height: 80,
+            child: ListView.builder(
+              controller: scrollCtrl,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              itemCount: dates.length,
+              itemBuilder: (_, i) {
+                final d = dates[i];
+                final key = _dateKey(d);
+                final isSel = _dateKey(d) == _dateKey(selected);
+                final open = dayOpen[key] ?? false;
+                final slotCount = (slotMap[key] ?? [])
+                    .where((s) => s.status == SlotStatus.available)
+                    .length;
+                final isToday = _dateKey(d) ==
+                    _dateKey(DateTime.now());
+
+                return GestureDetector(
+                  onTap: () => onSelect(d),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 54,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: isSel
+                          ? AppColors.doctorPrimary
+                          : open && slotCount > 0
+                              ? AppColors.doctorPrimary.withValues(alpha: 0.06)
+                              : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSel
+                            ? AppColors.doctorPrimary
+                            : isToday
+                                ? AppColors.doctorPrimary.withValues(alpha: 0.5)
+                                : Colors.grey.shade200,
+                        width: isToday && !isSel ? 1.5 : 1,
+                      ),
+                    ),
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(d,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: sel ? AppColors.doctorPrimary : AppColors.slate400,
-                              fontWeight: sel ? FontWeight.w700 : FontWeight.normal,
-                            )),
+                        Text(
+                          days[d.weekday],
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: isSel ? Colors.white70 : AppColors.slate400,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        if (sel)
+                        Text(
+                          '${d.day}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: isSel
+                                ? Colors.white
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        if (open && slotCount > 0)
+                          Text(
+                            '$slotCount slots',
+                            style: TextStyle(
+                              fontSize: 8,
+                              color: isSel
+                                  ? Colors.white70
+                                  : AppColors.doctorAccent,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
+                        else
                           Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: AppColors.doctorPrimary,
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
                               shape: BoxShape.circle,
+                              color: !open
+                                  ? Colors.grey.shade300
+                                  : Colors.transparent,
                             ),
                           ),
                       ],
                     ),
                   ),
                 );
-              }).toList(),
+              },
             ),
-          ),
-          // Stats row
-          Container(
-            color: AppColors.doctorCard,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                _Stat('Total Slots', '${slots.length}', AppColors.doctorPrimary),
-                const SizedBox(width: 12),
-                _Stat('Booked', '${booked.length}', AppColors.warning),
-                const SizedBox(width: 12),
-                _Stat('Available', '${slots.length - booked.length}', AppColors.doctorAccent),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.doctorBorder),
-          // Slot grid
-          Expanded(
-            child: slots.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.weekend_rounded, size: 48, color: AppColors.slate600),
-                        const SizedBox(height: 12),
-                        const Text('No slots on Sunday', style: TextStyle(color: AppColors.slate400)),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _showAddSlotDialog,
-                          child: const Text('Add Slots'),
-                        ),
-                      ],
-                    ),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 2.2,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                    ),
-                    itemCount: slots.length,
-                    itemBuilder: (_, i) {
-                      final time = slots[i];
-                      final isBooked = booked.contains(time);
-                      return _SlotChip(
-                        time: time,
-                        isBooked: isBooked,
-                        onTap: isBooked
-                            ? () => context.push('/doctor/appointment/apt_00${i + 1}')
-                            : () => _confirmDeleteSlot(time),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddSlotDialog,
-        backgroundColor: AppColors.doctorPrimary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Add Slot', style: TextStyle(color: Colors.white)),
-      ),
-    );
-  }
-
-  void _showAddSlotDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Add Slot — $_selectedDay',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-                         '14:00', '14:30', '15:00', '15:30', '17:00', '17:30']
-                  .map((t) => ActionChip(
-                        label: Text(t, style: const TextStyle(fontSize: 12)),
-                        backgroundColor: AppColors.primaryLight,
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Slot $t added on $_selectedDay')),
-                          );
-                        },
-                      ))
-                  .toList(),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _confirmDeleteSlot(String time) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text('Block slot $time?'),
-        content: Text('This will prevent new bookings for $_selectedDay $time.',
-            style: const TextStyle(color: AppColors.slate400)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Slot $time blocked')),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Block'),
           ),
         ],
       ),
@@ -217,27 +374,131 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 }
 
-class _Stat extends StatelessWidget {
-  final String label, value;
+// ── Day open/closed toggle ─────────────────────────────────────────────────────
+
+class _DayToggle extends StatelessWidget {
+  final DateTime date;
+  final bool isOpen;
+  final ValueChanged<bool> onChanged;
+  final int available, booked, blocked;
+
+  const _DayToggle({
+    required this.date,
+    required this.isOpen,
+    required this.onChanged,
+    required this.available,
+    required this.booked,
+    required this.blocked,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const days = [
+      '', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+    ];
+    const months = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${days[date.weekday]}, ${date.day} ${months[date.month]}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isOpen ? 'Open for appointments' : 'Day off — not accepting',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isOpen
+                            ? AppColors.doctorAccent
+                            : AppColors.slate400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: isOpen,
+                onChanged: onChanged,
+                activeThumbColor: AppColors.doctorAccent,
+                activeTrackColor:
+                    AppColors.doctorAccent.withValues(alpha: 0.25),
+              ),
+            ],
+          ),
+          if (isOpen) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _StatBadge('$available', 'Available',
+                    AppColors.doctorAccent),
+                const SizedBox(width: 8),
+                _StatBadge('$booked', 'Booked',
+                    AppColors.doctorPrimary),
+                const SizedBox(width: 8),
+                _StatBadge('$blocked', 'Blocked',
+                    AppColors.slate400),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StatBadge extends StatelessWidget {
+  final String count, label;
   final Color color;
-  const _Stat(this.label, this.value, this.color);
+  const _StatBadge(this.count, this.label, this.color);
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           children: [
-            Text(value,
+            Text(count,
                 style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: color)),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: color)),
             Text(label,
-                style: const TextStyle(fontSize: 10, color: AppColors.slate400)),
+                style: TextStyle(
+                    fontSize: 10,
+                    color: color.withValues(alpha: 0.8))),
           ],
         ),
       ),
@@ -245,43 +506,257 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _SlotChip extends StatelessWidget {
-  final String time;
-  final bool isBooked;
-  final VoidCallback onTap;
-  const _SlotChip({required this.time, required this.isBooked, required this.onTap});
+// ── Slot list ─────────────────────────────────────────────────────────────────
+
+class _SlotList extends StatelessWidget {
+  final Map<String, List<_Slot>> grouped;
+  final ValueChanged<_Slot> onToggle;
+
+  const _SlotList({required this.grouped, required this.onToggle});
 
   @override
   Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
+      children: grouped.entries
+          .where((e) => e.value.isNotEmpty)
+          .map((e) => _SessionSection(
+                title: e.key,
+                slots: e.value,
+                onToggle: onToggle,
+              ))
+          .toList(),
+    );
+  }
+}
+
+class _SessionSection extends StatelessWidget {
+  final String title;
+  final List<_Slot> slots;
+  final ValueChanged<_Slot> onToggle;
+
+  const _SessionSection({
+    required this.title,
+    required this.slots,
+    required this.onToggle,
+  });
+
+  IconData get _icon => switch (title) {
+        'Morning' => Icons.wb_sunny_rounded,
+        'Afternoon' => Icons.wb_cloudy_rounded,
+        _ => Icons.nights_stay_rounded,
+      };
+
+  Color get _color => switch (title) {
+        'Morning' => const Color(0xFFF59E0B),
+        'Afternoon' => AppColors.doctorPrimary,
+        _ => const Color(0xFF7C3AED),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(_icon, size: 14, color: _color),
+            const SizedBox(width: 6),
+            Text(title,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _color,
+                    letterSpacing: 0.5)),
+            const SizedBox(width: 8),
+            Expanded(child: Divider(color: _color.withValues(alpha: 0.2))),
+          ],
+        ),
+        const SizedBox(height: 10),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 2.4,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+          ),
+          itemCount: slots.length,
+          itemBuilder: (_, i) => _SlotChip(slot: slots[i], onTap: () => onToggle(slots[i])),
+        ),
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+}
+
+class _SlotChip extends StatelessWidget {
+  final _Slot slot;
+  final VoidCallback onTap;
+  const _SlotChip({required this.slot, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg, border, text;
+    final IconData? icon;
+    final String label;
+
+    switch (slot.status) {
+      case SlotStatus.available:
+        bg = Colors.white;
+        border = AppColors.doctorAccent.withValues(alpha: 0.5);
+        text = AppColors.doctorAccent;
+        icon = null;
+        label = slot.time;
+      case SlotStatus.booked:
+        bg = AppColors.doctorPrimary.withValues(alpha: 0.1);
+        border = AppColors.doctorPrimary;
+        text = AppColors.doctorPrimary;
+        icon = Icons.person_rounded;
+        label = slot.time;
+      case SlotStatus.blocked:
+        bg = Colors.grey.shade100;
+        border = Colors.grey.shade300;
+        text = AppColors.slate400;
+        icon = Icons.block_rounded;
+        label = slot.time;
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          color: isBooked
-              ? AppColors.primaryLight
-              : AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isBooked ? AppColors.primary : AppColors.border,
-            width: isBooked ? 1.5 : 0.5,
-          ),
+          color: bg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: border, width: 1.2),
+          boxShadow: slot.status == SlotStatus.available
+              ? [
+                  BoxShadow(
+                    color: AppColors.doctorAccent.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
-        alignment: Alignment.center,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(time,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isBooked ? AppColors.primary : AppColors.textSecondary,
-                )),
-            if (isBooked)
-              const Text('Booked',
-                  style: TextStyle(fontSize: 9, color: AppColors.doctorPrimary)),
+            if (icon != null)
+              Icon(icon, size: 12, color: text),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: text,
+              ),
+            ),
+            Text(
+              slot.status == SlotStatus.available
+                  ? 'open'
+                  : slot.status == SlotStatus.booked
+                      ? 'booked'
+                      : 'blocked',
+              style: TextStyle(
+                fontSize: 9,
+                color: text.withValues(alpha: 0.7),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Placeholders ──────────────────────────────────────────────────────────────
+
+class _DayOffPlaceholder extends StatelessWidget {
+  final VoidCallback onOpen;
+  const _DayOffPlaceholder({required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.event_busy_rounded,
+                  size: 40, color: AppColors.slate400),
+            ),
+            const SizedBox(height: 16),
+            const Text('Day Off',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            const Text(
+              'You\'re not accepting appointments\non this day.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.slate400, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: onOpen,
+              icon: const Icon(Icons.toggle_on_rounded, size: 18),
+              label: const Text('Open This Day'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.doctorAccent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptySlots extends StatelessWidget {
+  final VoidCallback onAdd;
+  const _EmptySlots({required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.schedule_rounded,
+              size: 48, color: AppColors.slate400),
+          const SizedBox(height: 12),
+          const Text('No slots yet',
+              style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 6),
+          const Text('Tap + to add time slots for this day.',
+              style:
+                  TextStyle(color: AppColors.slate400, fontSize: 13)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Add Slots'),
+          ),
+        ],
       ),
     );
   }

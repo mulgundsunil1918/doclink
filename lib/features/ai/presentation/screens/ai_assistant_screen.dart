@@ -667,15 +667,18 @@ class _ChatInput extends StatelessWidget {
               child: TextField(
                 controller: ctrl,
                 style: const TextStyle(color: _kText, fontSize: 14),
+                cursorColor: _kAccent,
                 maxLines: 3,
                 minLines: 1,
                 textInputAction: TextInputAction.send,
                 onSubmitted: onSend,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Ask a clinical question...',
-                  hintStyle: TextStyle(color: _kMuted, fontSize: 13),
+                  hintStyle: const TextStyle(color: _kMuted, fontSize: 13),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
+                  filled: true,
+                  fillColor: _kCard2,
+                  contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 10),
                 ),
               ),
@@ -2129,11 +2132,17 @@ void _copy(BuildContext context, String text) {
 String _friendlyError(Object e) {
   final s = e.toString();
   if (s.contains('429')) return 'Rate limit reached. Try again in a few seconds.';
-  if (s.contains('network') || s.contains('socket')) {
+  if (s.contains('network') || s.contains('socket') || s.contains('SocketException')) {
     return 'No internet connection.';
   }
-  if (s.contains('API_KEY') || s.contains('401')) {
-    return 'API key error. Contact support.';
+  if (s.contains('API_KEY') || s.contains('401') || s.contains('403')) {
+    return 'API key invalid or expired. Update the Gemini key in ai_config.dart.';
   }
-  return 'Something went wrong. Please try again.';
+  if (s.contains('400')) return 'Bad request — check your input and try again.';
+  if (s.contains('CORS') || s.contains('XMLHttpRequest')) {
+    return 'AI unavailable on web (CORS). Use the mobile app for full AI access.';
+  }
+  // Show trimmed actual error for easier debugging
+  final trimmed = s.length > 120 ? '${s.substring(0, 120)}…' : s;
+  return 'Error: $trimmed';
 }
