@@ -44,6 +44,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Secrets
-.env
+# Secrets (private keys only — .env has public anon key, safe to commit)
 .env.production

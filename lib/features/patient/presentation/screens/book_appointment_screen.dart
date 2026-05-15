@@ -2,9 +2,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../../../../core/config/payment_config.dart';
 import '../../../../core/providers/app_providers.dart';
+import '../../../../core/services/payment/payment_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
@@ -586,7 +586,7 @@ class _PaymentStep extends StatefulWidget {
 }
 
 class _PaymentStepState extends State<_PaymentStep> {
-  Razorpay? _razorpay;
+  final _payment = RazorpayService();
   bool _paying = false;
 
   static const _feeMultiplier = {
@@ -599,17 +599,25 @@ class _PaymentStepState extends State<_PaymentStep> {
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb) {
-      _razorpay = Razorpay();
-      _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onSuccess);
-      _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _onError);
-      _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _onExternalWallet);
-    }
+    _payment.init(
+      onSuccess: (paymentId) {
+        if (mounted) setState(() => _paying = false);
+        widget.onPay(paymentId, 'razorpay');
+      },
+      onError: (message) {
+        if (mounted) {
+          setState(() => _paying = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message), backgroundColor: Colors.red),
+          );
+        }
+      },
+    );
   }
 
   @override
   void dispose() {
-    _razorpay?.clear();
+    _payment.dispose();
     super.dispose();
   }
 
@@ -617,48 +625,16 @@ class _PaymentStepState extends State<_PaymentStep> {
       widget.doctorFee * (_feeMultiplier[widget.type] ?? 1.0);
 
   void _openCheckout() {
-    if (kIsWeb) {
-      // Web: skip Razorpay native SDK, book directly (demo/preview mode)
-      widget.onPay('web_demo_${DateTime.now().millisecondsSinceEpoch}', 'web');
-      return;
-    }
     setState(() => _paying = true);
-    final options = {
-      'key': PaymentConfig.razorpayKeyId,
-      'amount': (_fee * 100).toInt(),
-      'name': PaymentConfig.appName,
-      'description': '${widget.type} Consultation · Dr. ${widget.doctorName}',
-      'currency': PaymentConfig.currency,
-      'prefill': {'contact': widget.patientPhone ?? ''},
-      'theme': {'color': '#4F46E5'},
-    };
-    _razorpay!.open(options);
-  }
-
-  void _onSuccess(PaymentSuccessResponse response) {
-    setState(() => _paying = false);
-    widget.onPay(response.paymentId ?? '', 'razorpay');
-  }
-
-  void _onError(PaymentFailureResponse response) {
-    setState(() => _paying = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response.message ?? 'Payment failed. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _onExternalWallet(ExternalWalletResponse response) {
-    setState(() => _paying = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('External wallet: ${response.walletName}')),
-      );
-    }
+    _payment.open(
+      keyId: PaymentConfig.razorpayKeyId,
+      amountPaise: (_fee * 100).toInt(),
+      name: PaymentConfig.appName,
+      description: '${widget.type} Consultation · Dr. ${widget.doctorName}',
+      contact: widget.patientPhone,
+    );
+    // On web the stub calls onSuccess synchronously, so reset paying state
+    if (kIsWeb) setState(() => _paying = false);
   }
 
   @override
