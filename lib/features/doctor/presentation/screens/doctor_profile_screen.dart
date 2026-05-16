@@ -17,8 +17,26 @@ class DoctorProfileScreen extends ConsumerWidget {
     return doctorAsync.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (_, __) => _buildScaffold(context, ref, null),
+      error: (_, _) => _buildScaffold(context, ref, null),
       data: (doc) => _buildScaffold(context, ref, doc),
+    );
+  }
+
+  // Returns a stub AppDoctor so the edit screen can be opened even before
+  // the profile is fully loaded or the doctors row exists in Supabase.
+  AppDoctor _stubDoctor(WidgetRef ref) {
+    final profile = ref.read(currentProfileProvider).valueOrNull;
+    return AppDoctor(
+      id: profile?.id ?? '',
+      name: profile?.name ?? 'Doctor',
+      specialty: 'General Physician',
+      consultationFee: 500,
+      rating: 0,
+      earningsToday: 0,
+      earningsMonth: 0,
+      totalPatients: 0,
+      available: true,
+      kycVerified: false,
     );
   }
 
@@ -34,15 +52,13 @@ class DoctorProfileScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit Profile',
-            onPressed: doc == null
-                ? null
-                : () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            DoctorEditProfileScreen(doc: doc),
-                      ),
-                    ),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    DoctorEditProfileScreen(doc: doc ?? _stubDoctor(ref)),
+              ),
+            ),
           ),
         ],
       ),

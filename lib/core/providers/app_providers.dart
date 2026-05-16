@@ -348,7 +348,8 @@ final currentDoctorProvider = FutureProvider.autoDispose<AppDoctor?>((ref) async
         .select('*, doctors(*)')
         .eq('id', uid)
         .single();
-    if (data['doctors'] == null) return null;
+    // Build AppDoctor even if doctors row doesn't exist yet (onboarding case).
+    // AppDoctor.fromMap handles null doctors gracefully via ?? {}.
     return AppDoctor.fromMap(data);
   } catch (_) {
     return null;
@@ -800,8 +801,11 @@ Future<void> addFamilyMember({
     'patient_id': patientId,
     'name': name,
     'relation': relation,
+    // ignore: use_null_aware_elements
     if (age != null) 'age': age,
+    // ignore: use_null_aware_elements
     if (gender != null) 'gender': gender,
+    // ignore: use_null_aware_elements
     if (bloodGroup != null) 'blood_group': bloodGroup,
     'conditions': [],
     'is_primary': false,
@@ -973,7 +977,9 @@ Future<void> updateDoctorProfile({
   if (consultationFee != null) docMap['consultation_fee'] = consultationFee;
   if (available != null) docMap['available'] = available;
   if (docMap.isNotEmpty) {
-    await _db.from('doctors').update(docMap).eq('id', uid);
+    // upsert creates the doctors row if it doesn't exist yet (onboarding),
+    // or updates it if it does.
+    await _db.from('doctors').upsert({'id': uid, ...docMap});
   }
 }
 
