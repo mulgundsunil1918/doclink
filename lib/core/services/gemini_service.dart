@@ -1,9 +1,6 @@
 import 'dart:convert';
-import 'package:dio/dio.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 import '../config/ai_config.dart';
-
-const _base =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiApiKey';
 
 const _clinicalSystem =
     'You are an AI clinical assistant for licensed doctors in India using the Doclink app. '
@@ -126,7 +123,7 @@ class DrugInfo {
 class InteractionPair {
   final String drug1;
   final String drug2;
-  final String severity; // safe | caution | major
+  final String severity;
   final String effect;
   final String action;
   const InteractionPair({
@@ -166,29 +163,54 @@ class InteractionResult {
 // ── Service ───────────────────────────────────────────────────────────────────
 
 class GeminiService {
-  final _dio = Dio();
+  GenerativeModel _model({String? extraSystem, bool jsonMode = false}) {
+    final system = extraSystem != null
+        ? '$_clinicalSystem\n$extraSystem'
+        : _clinicalSystem;
+    return GenerativeModel(
+      model: 'gemini-2.0-flash',
+      apiKey: geminiApiKey,
+      systemInstruction: Content.system(system),
+      generationConfig: GenerationConfig(
+        temperature: jsonMode ? 0.2 : 0.4,
+        maxOutputTokens: jsonMode ? 1200 : 800,
+      ),
+    );
+  }
 
   Future<String> chat({
     required List<Map<String, dynamic>> history,
     String? patientContext,
   }) async {
-    final system = patientContext != null
-        ? '$_clinicalSystem\nCurrent patient context: $patientContext'
-        : _clinicalSystem;
-    return _textCall(history, system);
+    final model = _model(
+      extraSystem: patientContext != null
+          ? 'Current patient context: $patientContext'
+          : null,
+    );
+
+    // history includes the latest user message at the end
+    final prior = history.take(history.length - 1).map(_toContent).toList();
+    final lastText =
+        (history.last['parts'] as List).first['text'] as String;
+
+    final session = model.startChat(history: prior);
+    final response = await session.sendMessage(Content.text(lastText));
+    return response.text ?? '';
   }
 
   Future<RxDraft> generateRx({
     required String symptoms,
     String? patientContext,
   }) async {
-    const schema = '{"diagnosis":"string","medicines":[{"name":"string","dose":"string",'
+    const schema =
+        '{"diagnosis":"string","medicines":[{"name":"string","dose":"string",'
         '"route":"string","frequency":"string","duration":"string","notes":"string"}],'
         '"advice":"string","followUp":"string"}';
     final prompt =
         'Generate a prescription JSON for this case. Schema: $schema\n'
         '${patientContext != null ? "Patient: $patientContext\n" : ""}'
-        'Symptoms/Diagnosis: $symptoms';
+        'Symptoms/Diagnosis: $symptoms\n'
+        'Return ONLY valid JSON matching the schema.';
     final raw = await _jsonCall(prompt);
     return RxDraft.fromJson(jsonDecode(raw) as Map);
   }
@@ -197,7 +219,8 @@ class GeminiService {
     const schema =
         '{"subjective":"string","objective":"string","assessment":"string","plan":"string"}';
     final prompt =
-        'Generate a SOAP note JSON. Schema: $schema\nVisit details: $description';
+        'Generate a SOAP note JSON. Schema: $schema\nVisit details: $description\n'
+        'Return ONLY valid JSON matching the schema.';
     final raw = await _jsonCall(prompt);
     return SoapNote.fromJson(jsonDecode(raw) as Map);
   }
@@ -207,7 +230,9 @@ class GeminiService {
         '{"name":"string","class":"string","standardDose":"string","maxDose":"string",'
         '"frequency":"string","duration":"string","sideEffects":"string",'
         '"pregnancyCategory":"string","contraindications":"string","renalAdjustment":"string"}';
-    final prompt = 'Provide drug information JSON for $drugName. Schema: $schema';
+    final prompt =
+        'Provide drug information JSON for $drugName. Schema: $schema\n'
+        'Return ONLY valid JSON matching the schema.';
     final raw = await _jsonCall(prompt);
     return DrugInfo.fromJson(jsonDecode(raw) as Map);
   }
@@ -218,71 +243,26 @@ class GeminiService {
         '"pairs":[{"drug1":"string","drug2":"string","severity":"safe|caution|major",'
         '"effect":"string","action":"string"}]}';
     final prompt =
-        'Check drug interactions between: ${drugs.join(", ")}. Schema: $schema';
+        'Check drug interactions between: ${drugs.join(", ")}. Schema: $schema\n'
+        'Return ONLY valid JSON matching the schema.';
     final raw = await _jsonCall(prompt);
     return InteractionResult.fromJson(jsonDecode(raw) as Map);
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  Future<String> _textCall(
-      List<Map<String, dynamic>> history, String system) async {
-    final resp = await _dio.post<Map<String, dynamic>>(
-      _base,
-      data: {
-        'system_instruction': {
-          'parts': [
-            {'text': system}
-          ]
-        },
-        'contents': history,
-        'generationConfig': {'temperature': 0.4, 'maxOutputTokens': 800},
-      },
-      options: Options(
-        headers: {'Content-Type': 'application/json'},
-        receiveTimeout: const Duration(seconds: 30),
-      ),
-    );
-    return _extractText(resp.data);
-  }
-
   Future<String> _jsonCall(String prompt) async {
-    final resp = await _dio.post<Map<String, dynamic>>(
-      _base,
-      data: {
-        'system_instruction': {
-          'parts': [
-            {'text': _clinicalSystem}
-          ]
-        },
-        'contents': [
-          {
-            'role': 'user',
-            'parts': [
-              {'text': prompt}
-            ]
-          }
-        ],
-        'generationConfig': {
-          'temperature': 0.2,
-          'maxOutputTokens': 1200,
-          'response_mime_type': 'application/json',
-        },
-      },
-      options: Options(
-        headers: {'Content-Type': 'application/json'},
-        receiveTimeout: const Duration(seconds: 30),
-      ),
-    );
-    return _extractText(resp.data);
+    final model = _model(jsonMode: true);
+    final response =
+        await model.generateContent([Content.text(prompt)]);
+    return response.text ?? '{}';
   }
 
-  String _extractText(Map<String, dynamic>? data) {
-    return (data?['candidates'] as List?)
-            ?.firstOrNull?['content']?['parts']
-            ?.firstOrNull?['text'] as String? ??
-        '{}';
+  Content _toContent(Map<String, dynamic> msg) {
+    final role = msg['role'] as String;
+    final text = (msg['parts'] as List).first['text'] as String;
+    return Content(role, [TextPart(text)]);
   }
 
-  void dispose() => _dio.close();
+  void dispose() {}
 }
