@@ -598,7 +598,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
             ),
             child: AnimatedBuilder(
               animation: _ctrl,
-              builder: (_, __) {
+              builder: (_, _) {
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(3, (i) {
@@ -2130,19 +2130,20 @@ void _copy(BuildContext context, String text) {
 }
 
 String _friendlyError(Object e) {
-  final s = e.toString();
-  if (s.contains('429')) return 'Rate limit reached. Try again in a few seconds.';
-  if (s.contains('network') || s.contains('socket') || s.contains('SocketException')) {
+  final s = e.toString().toLowerCase();
+  if (s.contains('quota') || s.contains('exceeded') || s.contains('429') || s.contains('resource_exhausted')) {
+    return 'AI quota exceeded on the server. The Gemini key needs to be rotated (Supabase secret GEMINI_API_KEY).';
+  }
+  if (s.contains('network') || s.contains('socket') || s.contains('socketexception')) {
     return 'No internet connection.';
   }
-  if (s.contains('API_KEY') || s.contains('401') || s.contains('403')) {
-    return 'API key invalid or expired. Update the Gemini key in ai_config.dart.';
+  if (s.contains('api_key') || s.contains('401') || s.contains('403') || s.contains('invalid') && s.contains('key')) {
+    return 'API key invalid or expired. Get a new key at aistudio.google.com/app/apikey.';
   }
   if (s.contains('400')) return 'Bad request — check your input and try again.';
-  if (s.contains('CORS') || s.contains('XMLHttpRequest')) {
+  if (s.contains('cors') || s.contains('xmlhttprequest') || s.contains('failed to fetch')) {
     return 'AI unavailable on web (CORS). Use the mobile app for full AI access.';
   }
-  // Show trimmed actual error for easier debugging
-  final trimmed = s.length > 120 ? '${s.substring(0, 120)}…' : s;
-  return 'Error: $trimmed';
+  final trimmed = e.toString();
+  return trimmed.length > 100 ? '${trimmed.substring(0, 100)}…' : trimmed;
 }

@@ -1,6 +1,5 @@
 import 'dart:convert';
-import 'package:google_generative_ai/google_generative_ai.dart';
-import '../config/ai_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _clinicalSystem =
     'You are an AI clinical assistant for licensed doctors in India using the Doclink app. '
@@ -163,39 +162,50 @@ class InteractionResult {
 // ── Service ───────────────────────────────────────────────────────────────────
 
 class GeminiService {
-  GenerativeModel _model({String? extraSystem, bool jsonMode = false}) {
-    final system = extraSystem != null
-        ? '$_clinicalSystem\n$extraSystem'
-        : _clinicalSystem;
-    return GenerativeModel(
-      model: 'gemini-2.0-flash',
-      apiKey: geminiApiKey,
-      systemInstruction: Content.system(system),
-      generationConfig: GenerationConfig(
-        temperature: jsonMode ? 0.2 : 0.4,
-        maxOutputTokens: jsonMode ? 1200 : 800,
-      ),
-    );
+  // Calls the Supabase Edge Function 'gemini-proxy'. The Gemini API key
+  // lives in a Supabase server secret — never in this app or in git.
+  Future<String> _invoke({
+    required String system,
+    required List<Map<String, dynamic>> contents,
+    required Map<String, dynamic> generationConfig,
+  }) async {
+    final FunctionResponse res;
+    try {
+      res = await Supabase.instance.client.functions.invoke(
+        'gemini-proxy',
+        body: {
+          'system': system,
+          'contents': contents,
+          'generationConfig': generationConfig,
+        },
+      );
+    } on FunctionException catch (e) {
+      final detail = e.details is Map && (e.details as Map)['error'] != null
+          ? (e.details as Map)['error']
+          : e.details ?? e.reasonPhrase ?? 'unknown error';
+      throw Exception(detail);
+    }
+
+    final data = res.data;
+    final map = data is String
+        ? jsonDecode(data) as Map<String, dynamic>
+        : data as Map<String, dynamic>;
+    if (map['error'] != null) throw Exception(map['error']);
+    return (map['text'] as String?) ?? '';
   }
 
   Future<String> chat({
     required List<Map<String, dynamic>> history,
     String? patientContext,
   }) async {
-    final model = _model(
-      extraSystem: patientContext != null
-          ? 'Current patient context: $patientContext'
-          : null,
+    final system = patientContext != null
+        ? '$_clinicalSystem\nCurrent patient context: $patientContext'
+        : _clinicalSystem;
+    return _invoke(
+      system: system,
+      contents: history,
+      generationConfig: {'temperature': 0.4, 'maxOutputTokens': 800},
     );
-
-    // history includes the latest user message at the end
-    final prior = history.take(history.length - 1).map(_toContent).toList();
-    final lastText =
-        (history.last['parts'] as List).first['text'] as String;
-
-    final session = model.startChat(history: prior);
-    final response = await session.sendMessage(Content.text(lastText));
-    return response.text ?? '';
   }
 
   Future<RxDraft> generateRx({
@@ -252,16 +262,29 @@ class GeminiService {
   // ── Private helpers ──────────────────────────────────────────────────────────
 
   Future<String> _jsonCall(String prompt) async {
-    final model = _model(jsonMode: true);
-    final response =
-        await model.generateContent([Content.text(prompt)]);
-    return response.text ?? '{}';
+    final raw = await _invoke(
+      system: _clinicalSystem,
+      contents: [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': prompt}
+          ]
+        }
+      ],
+      generationConfig: {'temperature': 0.2, 'maxOutputTokens': 1200},
+    );
+    return raw.isEmpty ? '{}' : _stripFences(raw);
   }
 
-  Content _toContent(Map<String, dynamic> msg) {
-    final role = msg['role'] as String;
-    final text = (msg['parts'] as List).first['text'] as String;
-    return Content(role, [TextPart(text)]);
+  // Models sometimes wrap JSON in ```json ... ``` fences despite instructions.
+  String _stripFences(String s) {
+    var t = s.trim();
+    if (t.startsWith('```')) {
+      t = t.replaceFirst(RegExp(r'^```(json)?'), '').trim();
+      if (t.endsWith('```')) t = t.substring(0, t.length - 3).trim();
+    }
+    return t;
   }
 
   void dispose() {}
