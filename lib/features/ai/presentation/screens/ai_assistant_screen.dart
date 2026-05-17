@@ -170,7 +170,7 @@ class _Header extends StatelessWidget {
                         color: _kAccent.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text('Gemini 1.5 Flash',
+                      child: const Text('Groq · Llama 3.3',
                           style: TextStyle(
                               color: _kAccent,
                               fontSize: 9,
@@ -308,7 +308,7 @@ class _ChatTabState extends State<_ChatTab> {
     super.initState();
     final greeting = widget.patientName != null
         ? 'Hello Doctor! I\'m ready to assist with ${widget.patientName}\'s case. What would you like to know?'
-        : 'Hello Doctor! I\'m Doclink AI, powered by Gemini. Ask me drug doses, clinical guidelines, differential diagnoses, or anything medical.';
+        : 'Hello Doctor! I\'m Doclink AI, powered by Groq. Ask me drug doses, clinical guidelines, differential diagnoses, or anything medical.';
     _messages.add(_Msg(text: greeting, isUser: false));
   }
 
@@ -2132,7 +2132,7 @@ void _copy(BuildContext context, String text) {
 String _friendlyError(Object e) {
   final s = e.toString().toLowerCase();
   if (s.contains('quota') || s.contains('exceeded') || s.contains('429') || s.contains('resource_exhausted')) {
-    return 'AI quota exceeded on the server. The Gemini key needs to be rotated (Supabase secret GEMINI_API_KEY).';
+    return 'AI quota exceeded on the server. The Groq key needs to be rotated (Supabase secret GROQ_API_KEY).';
   }
   if (s.contains('network') || s.contains('socket') || s.contains('socketexception')) {
     return 'No internet connection.';
