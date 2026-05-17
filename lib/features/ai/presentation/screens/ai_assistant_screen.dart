@@ -1854,15 +1854,32 @@ class _DarkField extends StatelessWidget {
         controller: ctrl,
         minLines: minLines,
         maxLines: maxLines == 1 ? null : maxLines,
-        style: const TextStyle(color: _kText, fontSize: 13),
+        style: const TextStyle(
+            color: _kText, fontSize: 16, fontWeight: FontWeight.w500),
+        cursorColor: _kAccent,
         onSubmitted: onSubmitted,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: _kMuted, fontSize: 12),
-          prefixIcon: Icon(icon, color: _kMuted, size: 18),
-          border: InputBorder.none,
+          hintStyle: const TextStyle(color: _kMuted, fontSize: 14),
+          prefixIcon: Icon(icon, color: _kMuted, size: 20),
+          // Explicit dark fill — overrides the global theme's light
+          // InputDecoration fill that was making typed text invisible.
+          filled: true,
+          fillColor: _kCard2,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: _kAccent, width: 1.5),
+          ),
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         ),
       ),
     );
