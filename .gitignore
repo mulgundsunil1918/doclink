@@ -46,3 +46,6 @@ app.*.map.json
 
 # Secrets (private keys only — .env has public anon key, safe to commit)
 .env.production
+.env.secret
+groq.env
+supabase/.temp/
