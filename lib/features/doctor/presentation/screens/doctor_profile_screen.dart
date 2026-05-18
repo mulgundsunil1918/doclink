@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/dl_card.dart';
 import 'doctor_edit_profile_screen.dart';
+import 'prescription_template_settings_screen.dart';
 
 class DoctorProfileScreen extends ConsumerWidget {
   const DoctorProfileScreen({super.key});
@@ -364,6 +365,38 @@ class DoctorProfileScreen extends ConsumerWidget {
                           height: 1.4),
                     ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Prescription Template
+            DlCard(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.doctorPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.description_outlined,
+                      color: AppColors.doctorPrimary, size: 20),
+                ),
+                title: const Text('Prescription Template',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: const Text(
+                    'Clinic header, colours, defaults & sections',
+                    style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_right,
+                    color: AppColors.slate400),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const PrescriptionTemplateSettingsScreen(),
+                  ),
+                ),
               ),
             ),
           ],

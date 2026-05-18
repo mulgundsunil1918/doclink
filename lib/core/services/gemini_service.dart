@@ -247,6 +247,45 @@ class GeminiService {
     return DrugInfo.fromJson(jsonDecode(raw) as Map);
   }
 
+  /// Generates a complete, structured prescription from the doctor's free-text
+  /// case description. Returns a Map whose keys match ExtendedRxData + medicines.
+  Future<Map<String, dynamic>> generateFullRx({
+    required String doctorInput,
+    String? patientContext,
+  }) async {
+    const schema = '{'
+        '"chiefComplaints":["string"],'
+        '"history":["string"],'
+        '"primaryDiagnosis":"string",'
+        '"secondaryDiagnosis":"string",'
+        '"vitals":{"temp":"","bp":"","hr":"","notes":""},'
+        '"medicines":[{"name":"string","strength":"string","dosage":"string",'
+        '"route":"Oral","frequency":"string","timing":"After meals",'
+        '"duration":"string","instructions":"string"}],'
+        '"adviceDiet":"string",'
+        '"labTests":"string",'
+        '"followUp":"3 Days"'
+        '}';
+    final prompt =
+        'Generate a complete clinical prescription JSON for the following case.\n'
+        'Schema: $schema\n'
+        '${patientContext != null ? "Patient context: $patientContext\n" : ""}'
+        'Case description: $doctorInput\n'
+        'Rules:\n'
+        '- Use Indian brand names and standard Indian doses where applicable.\n'
+        '- vitals: leave blank ("") if not mentioned — do NOT invent values.\n'
+        '- chiefComplaints and history: short bullet strings, not paragraphs.\n'
+        '- medicines: include strength (e.g. "500mg"), dosage (e.g. "1 tablet"), '
+        'route, frequency, timing, duration and instructions.\n'
+        '- Return ONLY valid JSON matching the schema exactly.';
+    final raw = await _jsonCall(prompt);
+    try {
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+  }
+
   Future<InteractionResult> checkInteractions(List<String> drugs) async {
     const schema =
         '{"overallSeverity":"safe|caution|major","summary":"string",'

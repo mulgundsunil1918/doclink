@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/models/prescription_template.dart';
 import '../../../../core/providers/app_providers.dart';
+import '../../../../core/services/prescription_pdf_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/dl_card.dart';
@@ -535,7 +537,29 @@ class _PrescriptionsTab extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton.icon(
-                        onPressed: () {},
+                        onPressed: () async {
+                          final profile = ref
+                              .read(currentProfileProvider)
+                              .valueOrNull;
+                          try {
+                            final svc = PrescriptionPdfService();
+                            final bytes = await svc.generate(
+                              rx,
+                              null,
+                              PrescriptionSettings.defaults,
+                              patientName: profile?.name ?? '',
+                            );
+                            await svc.share(
+                                bytes,
+                                'Rx-${rx.id.substring(0, 8)}.pdf');
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                      content: Text('Error: $e')));
+                            }
+                          }
+                        },
                         icon: const Icon(Icons.share_rounded, size: 14),
                         label: const Text('Share',
                             style: TextStyle(fontSize: 12)),
@@ -543,7 +567,29 @@ class _PrescriptionsTab extends StatelessWidget {
                             foregroundColor: AppColors.slate500),
                       ),
                       TextButton.icon(
-                        onPressed: () {},
+                        onPressed: () async {
+                          final profile = ref
+                              .read(currentProfileProvider)
+                              .valueOrNull;
+                          try {
+                            final svc = PrescriptionPdfService();
+                            final bytes = await svc.generate(
+                              rx,
+                              null,
+                              PrescriptionSettings.defaults,
+                              patientName: profile?.name ?? '',
+                            );
+                            await svc.share(
+                                bytes,
+                                'Rx-${rx.id.substring(0, 8)}.pdf');
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                      content: Text('Error: $e')));
+                            }
+                          }
+                        },
                         icon: const Icon(Icons.download_rounded, size: 14),
                         label: const Text('Download PDF',
                             style: TextStyle(fontSize: 12)),

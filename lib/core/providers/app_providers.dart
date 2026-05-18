@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/prescription_template.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 String? get _uid => _db.auth.currentUser?.id;
@@ -37,6 +39,7 @@ class AppDoctor {
   final double consultationFee, rating, earningsToday, earningsMonth;
   final int totalPatients;
   final bool available, kycVerified;
+  final PrescriptionSettings prescriptionSettings;
   const AppDoctor({
     required this.id,
     required this.name,
@@ -56,9 +59,19 @@ class AppDoctor {
     required this.totalPatients,
     required this.available,
     required this.kycVerified,
-  });
+    PrescriptionSettings? prescriptionSettings,
+  }) : prescriptionSettings =
+            prescriptionSettings ?? PrescriptionSettings.defaults;
   factory AppDoctor.fromMap(Map<String, dynamic> m) {
     final doc = (m['doctors'] as Map<String, dynamic>?) ?? {};
+    final rxRaw = doc['prescription_settings'];
+    PrescriptionSettings rxSettings = PrescriptionSettings.defaults;
+    if (rxRaw is Map && (rxRaw as Map).isNotEmpty) {
+      try {
+        rxSettings =
+            PrescriptionSettings.fromJson(rxRaw.cast<String, dynamic>());
+      } catch (_) {}
+    }
     return AppDoctor(
       id: m['id'] ?? '',
       name: m['name'] ?? 'Doctor',
@@ -78,6 +91,7 @@ class AppDoctor {
       totalPatients: doc['total_patients'] as int? ?? 0,
       available: doc['available'] as bool? ?? true,
       kycVerified: doc['kyc_verified'] as bool? ?? false,
+      prescriptionSettings: rxSettings,
     );
   }
   String get initials {
@@ -192,7 +206,7 @@ class AppAppointment {
 
 class AppMedicine {
   final String id, name;
-  final String? dosage, frequency, duration, instructions;
+  final String? dosage, frequency, duration, instructions, strength, route;
   const AppMedicine({
     required this.id,
     required this.name,
@@ -200,6 +214,8 @@ class AppMedicine {
     this.frequency,
     this.duration,
     this.instructions,
+    this.strength,
+    this.route,
   });
   factory AppMedicine.fromMap(Map<String, dynamic> m) => AppMedicine(
         id: m['id'] ?? '',
@@ -208,15 +224,18 @@ class AppMedicine {
         frequency: m['frequency'] as String?,
         duration: m['duration'] as String?,
         instructions: m['instructions'] as String?,
+        strength: m['strength'] as String?,
+        route: m['route'] as String?,
       );
 }
 
 class AppPrescription {
   final String id, doctorId, patientId, diagnosis;
-  final String? doctorName, notes;
+  final String? doctorName, notes, verificationCode;
   final DateTime createdAt;
   final DateTime? followUpDate;
   final List<AppMedicine> medicines;
+  final ExtendedRxData? extended;
   const AppPrescription({
     required this.id,
     required this.doctorId,
@@ -224,25 +243,38 @@ class AppPrescription {
     required this.diagnosis,
     this.doctorName,
     this.notes,
+    this.verificationCode,
     required this.createdAt,
     this.followUpDate,
     required this.medicines,
+    this.extended,
   });
-  factory AppPrescription.fromMap(Map<String, dynamic> m) => AppPrescription(
-        id: m['id'] ?? '',
-        doctorId: m['doctor_id'] ?? '',
-        patientId: m['patient_id'] ?? '',
-        diagnosis: m['diagnosis'] ?? '',
-        notes: m['notes'] as String?,
-        createdAt: DateTime.tryParse(m['created_at'] as String? ?? '') ??
-            DateTime.now(),
-        followUpDate: m['follow_up_date'] != null
-            ? DateTime.tryParse(m['follow_up_date'] as String)
-            : null,
-        medicines: (m['medicines'] as List? ?? [])
-            .map((e) => AppMedicine.fromMap(e as Map<String, dynamic>))
-            .toList(),
-      );
+  factory AppPrescription.fromMap(Map<String, dynamic> m) {
+    ExtendedRxData? ext;
+    final raw = m['extended_data'];
+    if (raw is Map && (raw as Map).isNotEmpty) {
+      try {
+        ext = ExtendedRxData.fromJson(raw.cast<String, dynamic>());
+      } catch (_) {}
+    }
+    return AppPrescription(
+      id: m['id'] ?? '',
+      doctorId: m['doctor_id'] ?? '',
+      patientId: m['patient_id'] ?? '',
+      diagnosis: m['diagnosis'] ?? '',
+      notes: m['notes'] as String?,
+      verificationCode: m['verification_code'] as String?,
+      createdAt: DateTime.tryParse(m['created_at'] as String? ?? '') ??
+          DateTime.now(),
+      followUpDate: m['follow_up_date'] != null
+          ? DateTime.tryParse(m['follow_up_date'] as String)
+          : null,
+      medicines: (m['medicines'] as List? ?? [])
+          .map((e) => AppMedicine.fromMap(e as Map<String, dynamic>))
+          .toList(),
+      extended: ext,
+    );
+  }
   String get formattedDate {
     const months = [
       'Jan','Feb','Mar','Apr','May','Jun',
@@ -958,6 +990,7 @@ Future<void> updateDoctorProfile({
   String? upiId,
   double? consultationFee,
   bool? available,
+  PrescriptionSettings? prescriptionSettings,
 }) async {
   final profileMap = <String, dynamic>{};
   if (name != null) profileMap['name'] = name;
@@ -976,6 +1009,9 @@ Future<void> updateDoctorProfile({
   if (upiId != null) docMap['upi_id'] = upiId;
   if (consultationFee != null) docMap['consultation_fee'] = consultationFee;
   if (available != null) docMap['available'] = available;
+  if (prescriptionSettings != null) {
+    docMap['prescription_settings'] = prescriptionSettings.toJson();
+  }
   if (docMap.isNotEmpty) {
     // upsert creates the doctors row if it doesn't exist yet (onboarding),
     // or updates it if it does.
@@ -1006,6 +1042,12 @@ Future<void> savePayment({
   });
 }
 
+String _generateVerificationCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  final rng = math.Random.secure();
+  return 'E-RX-${List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join()}';
+}
+
 Future<void> savePrescription({
   required String doctorId,
   required String patientId,
@@ -1013,8 +1055,10 @@ Future<void> savePrescription({
   String? notes,
   DateTime? followUpDate,
   String? appointmentId,
-  required List<Map<String, String>> medicines,
+  required List<Map<String, dynamic>> medicines,
+  ExtendedRxData? extendedData,
 }) async {
+  final verificationCode = _generateVerificationCode();
   final rx = await _db.from('prescriptions').insert({
     'doctor_id': doctorId,
     'patient_id': patientId,
@@ -1022,6 +1066,8 @@ Future<void> savePrescription({
     'notes': notes,
     'follow_up_date': followUpDate?.toIso8601String().substring(0, 10),
     'appointment_id': appointmentId,
+    'verification_code': verificationCode,
+    if (extendedData != null) 'extended_data': extendedData.toJson(),
   }).select('id');
 
   if ((rx as List).isNotEmpty) {
