@@ -49,13 +49,12 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
     ),
   ];
 
-  static const _slots = [
-    '09:00 AM', '09:20 AM', '09:40 AM',
-    '10:00 AM', '10:20 AM', '10:40 AM',
-    '11:00 AM', '04:00 PM', '04:20 PM',
-    '04:40 PM', '05:00 PM', '05:20 PM',
+  List<String> _realSlots = const [
+    '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+    '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
   ];
-  static const _bookedSlots = ['09:00 AM', '09:20 AM', '09:40 AM'];
+  List<String> _realBooked = const [];
+  bool _loadingSlots = false;
 
   @override
   Widget build(BuildContext context) {
@@ -120,10 +119,13 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
   Widget _buildStep() {
     return switch (_step) {
       0 => _DoctorSelector(
-          onSelect: (doc) => setState(() {
-            _selectedDoctor = doc;
-            _step = 1;
-          }),
+          onSelect: (doc) {
+            setState(() {
+              _selectedDoctor = doc;
+              _step = 1;
+            });
+            _loadSlots(doc);
+          },
         ),
       1 => _TypeSelector(
           types: _consultTypes,
@@ -134,16 +136,23 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
             _step = 2;
           }),
         ),
-      2 => _SlotPicker(
-          slots: _slots,
-          bookedSlots: _bookedSlots,
-          doctorName: _selectedDoctor?.name ?? 'Doctor',
-          selected: _selectedSlot,
-          onSelect: (s) => setState(() {
-            _selectedSlot = s;
-            _step = 3;
-          }),
-        ),
+      2 => _loadingSlots
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          : _SlotPicker(
+              slots: _realSlots,
+              bookedSlots: _realBooked,
+              doctorName: _selectedDoctor?.name ?? 'Doctor',
+              selected: _selectedSlot,
+              onSelect: (s) => setState(() {
+                _selectedSlot = s;
+                _step = 3;
+              }),
+            ),
       3 => _PaymentStep(
           type: _selectedType,
           slot: _selectedSlot,
@@ -168,6 +177,44 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
           },
         ),
     };
+  }
+
+  Future<void> _loadSlots(AppDoctor doctor) async {
+    setState(() => _loadingSlots = true);
+    try {
+      final today = DateTime.now();
+      final dateStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final row = await fetchDoctorAvailability(
+          doctorId: doctor.id, date: dateStr);
+      if (row != null && row['is_open'] == true) {
+        final all = (row['slots'] as List? ?? []);
+        setState(() {
+          _realSlots = all
+              .where((s) => s['status'] != 'blocked')
+              .map((s) => _to12h(s['time'] as String))
+              .toList();
+          _realBooked = all
+              .where((s) => s['status'] == 'booked')
+              .map((s) => _to12h(s['time'] as String))
+              .toList();
+        });
+      }
+      // If doctor hasn't set schedule yet — keep defaults
+    } catch (_) {}
+    if (mounted) setState(() => _loadingSlots = false);
+  }
+
+  String _to12h(String t) {
+    final p = t.split(':');
+    int h = int.parse(p[0]);
+    final m = p[1];
+    final period = h >= 12 ? 'PM' : 'AM';
+    if (h == 0) {
+      h = 12;
+    } else if (h > 12) {
+      h -= 12;
+    }
+    return '$h:$m $period';
   }
 
   Future<void> _handlePayment(String razorpayPaymentId, String method) async {

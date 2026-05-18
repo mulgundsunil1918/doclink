@@ -133,53 +133,135 @@ class _QueueBoardScreenState extends ConsumerState<QueueBoardScreen> {
 
   void _showAddToQueue(BuildContext context) {
     final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    AppDoctor? selectedDoctor;
+    bool saving = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Add Walk-in',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.slate800)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Patient Name',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person_rounded),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(nameCtrl.text.isNotEmpty
-                          ? '${nameCtrl.text} added to queue'
-                          : 'Walk-in added'),
-                      backgroundColor: AppColors.patientPrimary,
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.patientPrimary,
-                  minimumSize: const Size(double.infinity, 48),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(builder: (ctx, setSheet) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Add Walk-in',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.slate800)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Patient Name *',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person_rounded),
                 ),
-                child: const Text('Add to Queue'),
               ),
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Phone (optional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.phone_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Doctor selector
+              Consumer(builder: (ctx, ref, _) {
+                final docsAsync = ref.watch(allDoctorsProvider);
+                return docsAsync.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (_, __) => const SizedBox(),
+                  data: (docs) => docs.isEmpty
+                      ? const SizedBox()
+                      : DropdownButtonFormField<AppDoctor>(
+                          value: selectedDoctor,
+                          decoration: const InputDecoration(
+                            labelText: 'Assign to Doctor',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.medical_services_rounded),
+                          ),
+                          items: docs
+                              .map((d) => DropdownMenuItem(
+                                  value: d,
+                                  child: Text('Dr. ${d.name}')))
+                              .toList(),
+                          onChanged: (d) =>
+                              setSheet(() => selectedDoctor = d),
+                        ),
+                );
+              }),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final name = nameCtrl.text.trim();
+                          if (name.isEmpty) return;
+                          setSheet(() => saving = true);
+                          try {
+                            final uid = ref
+                                .read(currentProfileProvider)
+                                .valueOrNull
+                                ?.id;
+                            final doctorId =
+                                selectedDoctor?.id ?? uid ?? '';
+                            await createWalkInAppointment(
+                              doctorId: doctorId,
+                              createdByUid: uid ?? '',
+                              patientName: name,
+                              phone: phoneCtrl.text.trim(),
+                            );
+                            ref.invalidate(todayQueueProvider);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text('$name added to queue'),
+                                backgroundColor: AppColors.patientPrimary,
+                              ));
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text('Error: $e'),
+                                backgroundColor: Colors.red,
+                              ));
+                            }
+                          } finally {
+                            setSheet(() => saving = false);
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.patientPrimary,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Add to Queue'),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
     );
   }
 }

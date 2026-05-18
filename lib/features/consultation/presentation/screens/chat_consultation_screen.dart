@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'video_call_screen.dart';
 
 class ChatConsultationScreen extends ConsumerStatefulWidget {
   final String appointmentId;
@@ -17,6 +20,7 @@ class _ChatConsultationScreenState
     extends ConsumerState<ChatConsultationScreen> {
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
+  final _picker = ImagePicker();
   bool _sending = false;
 
   String? get _myId => Supabase.instance.client.auth.currentUser?.id;
@@ -39,6 +43,60 @@ class _ChatConsultationScreenState
     } catch (_) {
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _sendImage(ImageSource source) async {
+    try {
+      final xfile = await _picker.pickImage(source: source, imageQuality: 70);
+      if (xfile == null || !mounted) return;
+      final bytes = await xfile.readAsBytes();
+      final ext = xfile.path.split('.').last;
+      final path =
+          'chat/${widget.appointmentId}/${DateTime.now().millisecondsSinceEpoch}.$ext';
+      await Supabase.instance.client.storage
+          .from('chat-attachments')
+          .uploadBinary(path, bytes,
+              fileOptions: FileOptions(contentType: 'image/$ext'));
+      final url = Supabase.instance.client.storage
+          .from('chat-attachments')
+          .getPublicUrl(path);
+      await sendMessage(
+          appointmentId: widget.appointmentId, text: '[IMAGE]:$url');
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Upload failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _sendDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png']);
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final file = result.files.first;
+      if (file.bytes == null) return;
+      final path =
+          'chat/${widget.appointmentId}/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+      await Supabase.instance.client.storage
+          .from('chat-attachments')
+          .uploadBinary(path, file.bytes!);
+      final url = Supabase.instance.client.storage
+          .from('chat-attachments')
+          .getPublicUrl(path);
+      await sendMessage(
+          appointmentId: widget.appointmentId,
+          text: '[FILE:${file.name}]:$url');
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Upload failed: $e')));
+      }
     }
   }
 
@@ -91,9 +149,21 @@ class _ChatConsultationScreenState
         ),
         actions: [
           IconButton(
-              icon: const Icon(Icons.videocam_rounded), onPressed: () {}),
+            icon: const Icon(Icons.videocam_rounded),
+            tooltip: 'Switch to Video',
+            onPressed: () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const VideoCallScreen()),
+            ),
+          ),
           IconButton(
-              icon: const Icon(Icons.phone_rounded), onPressed: () {}),
+            icon: const Icon(Icons.phone_rounded),
+            tooltip: 'Switch to Voice',
+            onPressed: () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const VideoCallScreen()),
+            ),
+          ),
         ],
       ),
       body: Column(
@@ -133,9 +203,15 @@ class _ChatConsultationScreenState
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
-                _AttachBtn(icon: Icons.image_rounded, onTap: () {}),
-                _AttachBtn(icon: Icons.camera_alt_rounded, onTap: () {}),
-                _AttachBtn(icon: Icons.description_rounded, onTap: () {}),
+                _AttachBtn(
+                    icon: Icons.image_rounded,
+                    onTap: () => _sendImage(ImageSource.gallery)),
+                _AttachBtn(
+                    icon: Icons.camera_alt_rounded,
+                    onTap: () => _sendImage(ImageSource.camera)),
+                _AttachBtn(
+                    icon: Icons.description_rounded,
+                    onTap: () => _sendDocument()),
               ],
             ),
           ),
@@ -201,6 +277,24 @@ class _ChatBubble extends StatelessWidget {
   final bool isMe;
   const _ChatBubble({required this.message, required this.isMe});
 
+  bool get _isImage => message.text.startsWith('[IMAGE]:');
+  bool get _isFile => message.text.startsWith('[FILE:');
+  String get _url {
+    if (_isImage) return message.text.substring('[IMAGE]:'.length);
+    if (_isFile) {
+      final colonIdx = message.text.indexOf(']:');
+      return message.text.substring(colonIdx + 2);
+    }
+    return '';
+  }
+
+  String get _fileName {
+    if (!_isFile) return '';
+    final start = message.text.indexOf('[FILE:') + 6;
+    final end = message.text.indexOf(']:');
+    return message.text.substring(start, end);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -251,13 +345,45 @@ class _ChatBubble extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: Text(
-                    message.text,
-                    style: TextStyle(
-                      color: isMe ? Colors.white : AppColors.slate800,
-                      fontSize: 14,
-                    ),
-                  ),
+                  child: _isImage
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _url,
+                            width: 200,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.broken_image),
+                          ),
+                        )
+                      : _isFile
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.description_rounded, size: 16),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    _fileName,
+                                    style: TextStyle(
+                                      color: isMe
+                                          ? Colors.white
+                                          : AppColors.slate800,
+                                      fontSize: 13,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              message.text,
+                              style: TextStyle(
+                                color: isMe ? Colors.white : AppColors.slate800,
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
+                            ),
                 ),
                 const SizedBox(height: 4),
                 Text(

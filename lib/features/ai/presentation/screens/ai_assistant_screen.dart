@@ -92,8 +92,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       index: _tab,
       children: [
         _ChatTab(gemini: _gemini, patientName: widget.patientName),
-        _RxTab(
-          gemini: _gemini,
+        _RxRedirectCard(
           patientName: widget.patientName,
           patientId: widget.patientId,
           appointmentId: widget.appointmentId,
@@ -715,7 +714,70 @@ class _ChatInput extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tab 2 — Write Rx
+// Tab 2 — Write Rx redirect card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RxRedirectCard extends StatelessWidget {
+  final String? patientName, patientId, appointmentId;
+  const _RxRedirectCard({this.patientName, this.patientId, this.appointmentId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(
+                color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.edit_note_rounded,
+                  color: Color(0xFFD97706), size: 40),
+            ),
+            const SizedBox(height: 20),
+            const Text('Full Prescription Writer',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            const Text(
+              'Use the complete 5-tab Rx writer with AI Fill, vitals, lab orders, PDF export and more.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/doctor/rx', extra: {
+                'patientName': patientName,
+                'patientId': patientId,
+                'appointmentId': appointmentId,
+              }),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD97706),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: const Text('Open Prescription Writer',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(height: 12),
+            const Text('You can also tap "Write Rx" from the Doctor Dashboard.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab 2 — Write Rx (kept for reference; not used in IndexedStack)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RxTab extends StatefulWidget {

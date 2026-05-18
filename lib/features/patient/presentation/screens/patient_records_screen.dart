@@ -532,6 +532,10 @@ class _PrescriptionsTab extends StatelessWidget {
                     Text('+${rx.medicines.length - 3} more',
                         style: const TextStyle(
                             color: AppColors.slate400, fontSize: 12)),
+                  if (rx.medicines.isNotEmpty) ...[
+                    const Divider(height: 16),
+                    _ReminderRow(rx: rx, context: context),
+                  ],
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -645,5 +649,142 @@ class _UploadOption extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ReminderRow extends StatelessWidget {
+  final AppPrescription rx;
+  final BuildContext context;
+  const _ReminderRow({required this.rx, required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Row(
+      children: [
+        const Icon(Icons.alarm_rounded, size: 14, color: AppColors.patientPrimary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            '${rx.medicines.length} medicine${rx.medicines.length > 1 ? "s" : ""}',
+            style: const TextStyle(fontSize: 12, color: AppColors.slate600),
+          ),
+        ),
+        TextButton(
+          onPressed: () => _showReminders(ctx),
+          style: TextButton.styleFrom(
+              foregroundColor: AppColors.patientPrimary,
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          child: const Text('Set Reminder', style: TextStyle(fontSize: 12)),
+        ),
+      ],
+    );
+  }
+
+  void _showReminders(BuildContext ctx) {
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Medicine Reminders',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            const Text('Your reminder schedule based on this prescription:',
+                style: TextStyle(fontSize: 12, color: AppColors.slate500)),
+            const SizedBox(height: 16),
+            ...rx.medicines.map((m) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.patientPrimary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.medication_rounded,
+                        color: AppColors.patientPrimary, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(m.name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 13)),
+                        Text(
+                          [
+                            if (m.dosage != null) m.dosage!,
+                            if (m.frequency != null) m.frequency!,
+                            if (m.duration != null) m.duration!,
+                          ].join(' · '),
+                          style: const TextStyle(
+                              color: AppColors.slate500, fontSize: 11),
+                        ),
+                        Text(
+                          _reminderTimes(m.frequency),
+                          style: const TextStyle(
+                              color: AppColors.patientPrimary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                    content: Text('Reminders noted — take medicines at the shown times'),
+                    backgroundColor: AppColors.patientPrimary,
+                  ));
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.patientPrimary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.alarm_on_rounded, size: 18),
+                label: const Text('Got it'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _reminderTimes(String? frequency) {
+    if (frequency == null) return 'As directed';
+    final f = frequency.toLowerCase();
+    if (f.contains('once daily') || f.contains('od')) return '⏰ 8:00 AM';
+    if (f.contains('twice') || f.contains('bd')) return '⏰ 8:00 AM  ·  8:00 PM';
+    if (f.contains('thrice') || f.contains('tds') || f.contains('three')) {
+      return '⏰ 8:00 AM  ·  2:00 PM  ·  8:00 PM';
+    }
+    if (f.contains('four') || f.contains('qid')) {
+      return '⏰ 8AM  ·  12PM  ·  4PM  ·  8PM';
+    }
+    if (f.contains('night') || f.contains('bedtime') || f.contains('hs')) {
+      return '⏰ 10:00 PM';
+    }
+    if (f.contains('sos') || f.contains('as needed')) return 'When needed';
+    return 'As directed';
   }
 }

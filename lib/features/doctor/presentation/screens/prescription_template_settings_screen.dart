@@ -180,7 +180,7 @@ class _PrescriptionTemplateSettingsScreenState
             value: _settings.showVitals,
             onChanged: (v) =>
                 setState(() => _settings = _settings.copyWith(showVitals: v)),
-            activeColor: AppColors.doctorPrimary,
+            activeThumbColor: AppColors.doctorPrimary,
             contentPadding: EdgeInsets.zero,
           ),
           SwitchListTile(
@@ -189,7 +189,7 @@ class _PrescriptionTemplateSettingsScreenState
             value: _settings.showHistory,
             onChanged: (v) => setState(
                 () => _settings = _settings.copyWith(showHistory: v)),
-            activeColor: AppColors.doctorPrimary,
+            activeThumbColor: AppColors.doctorPrimary,
             contentPadding: EdgeInsets.zero,
           ),
           SwitchListTile(
@@ -198,7 +198,7 @@ class _PrescriptionTemplateSettingsScreenState
             value: _settings.showAdvice,
             onChanged: (v) => setState(
                 () => _settings = _settings.copyWith(showAdvice: v)),
-            activeColor: AppColors.doctorPrimary,
+            activeThumbColor: AppColors.doctorPrimary,
             contentPadding: EdgeInsets.zero,
           ),
           SwitchListTile(
@@ -207,7 +207,7 @@ class _PrescriptionTemplateSettingsScreenState
             value: _settings.showEmergency,
             onChanged: (v) => setState(
                 () => _settings = _settings.copyWith(showEmergency: v)),
-            activeColor: AppColors.doctorPrimary,
+            activeThumbColor: AppColors.doctorPrimary,
             contentPadding: EdgeInsets.zero,
           ),
           const SizedBox(height: 20),
@@ -232,7 +232,7 @@ class _PrescriptionTemplateSettingsScreenState
             value: _settings.defaultSubstitution,
             onChanged: (v) => setState(
                 () => _settings = _settings.copyWith(defaultSubstitution: v)),
-            activeColor: AppColors.doctorPrimary,
+            activeThumbColor: AppColors.doctorPrimary,
             contentPadding: EdgeInsets.zero,
           ),
           _label('Default Follow-up'),
@@ -383,7 +383,7 @@ class _ColorPicker extends StatelessWidget {
 
   void _showHexDialog(BuildContext context) {
     final ctrl = TextEditingController(
-        text: '#${selected.value.toRadixString(16).substring(2).toUpperCase()}');
+        text: '#${(selected.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}');
     showDialog(
       context: context,
       builder: (_) => AlertDialog(

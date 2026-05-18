@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
@@ -24,13 +27,13 @@ List<_Slot> _defaultSlots() => [
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-class ScheduleScreen extends StatefulWidget {
+class ScheduleScreen extends ConsumerStatefulWidget {
   const ScheduleScreen({super.key});
   @override
-  State<ScheduleScreen> createState() => _ScheduleScreenState();
+  ConsumerState<ScheduleScreen> createState() => _ScheduleScreenState();
 }
 
-class _ScheduleScreenState extends State<ScheduleScreen> {
+class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   late DateTime _selectedDate;
   late final List<DateTime> _dates;
 
@@ -41,6 +44,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   final _dateScrollCtrl = ScrollController();
 
+  bool _loading = false;
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,12 +56,64 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     // seed today open with default slots
     _dayOpen[_dateKey(today)] = true;
     _slotMap[_dateKey(today)] = _defaultSlots();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSchedule());
   }
 
   @override
   void dispose() {
     _dateScrollCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSchedule() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+    setState(() => _loading = true);
+    try {
+      final today = _dates.first;
+      final end = _dates.last;
+      final rows = await Supabase.instance.client
+          .from('doctor_availability')
+          .select()
+          .eq('doctor_id', uid)
+          .gte('date', _dateKey(today))
+          .lte('date', _dateKey(end));
+      for (final row in rows as List) {
+        final dk = row['date'] as String;
+        _dayOpen[dk] = row['is_open'] as bool? ?? false;
+        _slotMap[dk] = ((row['slots'] as List?) ?? [])
+            .map((s) => _Slot(s['time'] as String,
+                status: _parseStatus(s['status'] as String? ?? 'available')))
+            .toList();
+      }
+      if (mounted) setState(() {});
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  SlotStatus _parseStatus(String s) => switch (s) {
+    'booked' => SlotStatus.booked,
+    'blocked' => SlotStatus.blocked,
+    _ => SlotStatus.available,
+  };
+
+  Future<void> _saveDay() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final slots = (_slotMap[_key] ?? [])
+          .map((s) => {'time': s.time, 'status': s.status.name})
+          .toList();
+      await saveDoctorAvailability(
+        doctorId: uid,
+        date: _key,
+        isOpen: _dayOpen[_key] ?? false,
+        slots: slots,
+      );
+    } catch (_) {}
+    if (mounted) setState(() => _saving = false);
   }
 
   String get _key => _dateKey(_selectedDate);
@@ -70,6 +128,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         _slotMap[_key] = _defaultSlots();
       }
     });
+    _saveDay();
   }
 
   void _toggleSlot(_Slot slot) {
@@ -83,6 +142,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ? SlotStatus.blocked
           : SlotStatus.available;
     });
+    _saveDay();
   }
 
   Future<void> _addSlot() async {
@@ -105,6 +165,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       list.add(_Slot(timeStr));
       list.sort((a, b) => a.time.compareTo(b.time));
     });
+    _saveDay();
   }
 
   void _blockEntireDay() {
@@ -115,6 +176,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         if (s.status == SlotStatus.available) s.status = SlotStatus.blocked;
       }
     });
+    _saveDay();
   }
 
   void _clearAllBlocks() {
@@ -125,6 +187,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         if (s.status == SlotStatus.blocked) s.status = SlotStatus.available;
       }
     });
+    _saveDay();
   }
 
   // Split slots into morning / afternoon / evening
@@ -159,6 +222,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         title: const Text('My Schedule',
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
         actions: [
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           if (_isOpen)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded),
@@ -177,48 +248,57 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // ── Date strip ─────────────────────────────────────────────────────
-          _DateStrip(
-            dates: _dates,
-            selected: _selectedDate,
-            slotMap: _slotMap,
-            dayOpen: _dayOpen,
-            scrollCtrl: _dateScrollCtrl,
-            onSelect: (d) {
-              setState(() => _selectedDate = d);
-              // Auto-open day if it was never configured
-              if (_dayOpen[_dateKey(d)] == null) {
-                _dayOpen[_dateKey(d)] = true;
-                _slotMap[_dateKey(d)] = _defaultSlots();
-              }
-            },
-          ),
+          Column(
+            children: [
+              // ── Date strip ───────────────────────────────────────────────────
+              _DateStrip(
+                dates: _dates,
+                selected: _selectedDate,
+                slotMap: _slotMap,
+                dayOpen: _dayOpen,
+                scrollCtrl: _dateScrollCtrl,
+                onSelect: (d) {
+                  setState(() => _selectedDate = d);
+                  // Auto-open day if it was never configured
+                  if (_dayOpen[_dateKey(d)] == null) {
+                    _dayOpen[_dateKey(d)] = true;
+                    _slotMap[_dateKey(d)] = _defaultSlots();
+                  }
+                },
+              ),
 
-          // ── Open/closed toggle ─────────────────────────────────────────────
-          _DayToggle(
-            date: _selectedDate,
-            isOpen: _isOpen,
-            onChanged: _toggleDay,
-            available: avail,
-            booked: booked,
-            blocked: blocked,
-          ),
+              // ── Open/closed toggle ───────────────────────────────────────────
+              _DayToggle(
+                date: _selectedDate,
+                isOpen: _isOpen,
+                onChanged: _toggleDay,
+                available: avail,
+                booked: booked,
+                blocked: blocked,
+              ),
 
-          // ── Slots ──────────────────────────────────────────────────────────
-          Expanded(
-            child: !_isOpen
-                ? _DayOffPlaceholder(
-                    onOpen: () => _toggleDay(true),
-                  )
-                : _slots.isEmpty
-                    ? _EmptySlots(onAdd: _addSlot)
-                    : _SlotList(
-                        grouped: _grouped,
-                        onToggle: _toggleSlot,
-                      ),
+              // ── Slots ────────────────────────────────────────────────────────
+              Expanded(
+                child: !_isOpen
+                    ? _DayOffPlaceholder(
+                        onOpen: () => _toggleDay(true),
+                      )
+                    : _slots.isEmpty
+                        ? _EmptySlots(onAdd: _addSlot)
+                        : _SlotList(
+                            grouped: _grouped,
+                            onToggle: _toggleSlot,
+                          ),
+              ),
+            ],
           ),
+          if (_loading)
+            const ColoredBox(
+              color: Color(0x44FFFFFF),
+              child: Center(child: CircularProgressIndicator()),
+            ),
         ],
       ),
       floatingActionButton: _isOpen

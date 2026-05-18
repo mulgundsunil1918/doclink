@@ -66,7 +66,7 @@ class AppDoctor {
     final doc = (m['doctors'] as Map<String, dynamic>?) ?? {};
     final rxRaw = doc['prescription_settings'];
     PrescriptionSettings rxSettings = PrescriptionSettings.defaults;
-    if (rxRaw is Map && (rxRaw as Map).isNotEmpty) {
+    if (rxRaw is Map && rxRaw.isNotEmpty) {
       try {
         rxSettings =
             PrescriptionSettings.fromJson(rxRaw.cast<String, dynamic>());
@@ -252,7 +252,7 @@ class AppPrescription {
   factory AppPrescription.fromMap(Map<String, dynamic> m) {
     ExtendedRxData? ext;
     final raw = m['extended_data'];
-    if (raw is Map && (raw as Map).isNotEmpty) {
+    if (raw is Map && raw.isNotEmpty) {
       try {
         ext = ExtendedRxData.fromJson(raw.cast<String, dynamic>());
       } catch (_) {}
@@ -1080,4 +1080,75 @@ Future<void> savePrescription({
       'p_doctor_id': doctorId,
     }).catchError((_) {});
   }
+}
+
+// ── Doctor availability ───────────────────────────────────────────────────────
+
+Future<void> saveDoctorAvailability({
+  required String doctorId,
+  required String date, // 'YYYY-MM-DD'
+  required bool isOpen,
+  required List<Map<String, String>> slots,
+}) async {
+  await _db.from('doctor_availability').upsert({
+    'doctor_id': doctorId,
+    'date': date,
+    'is_open': isOpen,
+    'slots': slots,
+    'updated_at': DateTime.now().toIso8601String(),
+  }, onConflict: 'doctor_id,date');
+}
+
+Future<Map<String, dynamic>?> fetchDoctorAvailability({
+  required String doctorId,
+  required String date,
+}) async {
+  try {
+    return await _db
+        .from('doctor_availability')
+        .select()
+        .eq('doctor_id', doctorId)
+        .eq('date', date)
+        .maybeSingle();
+  } catch (_) {
+    return null;
+  }
+}
+
+// ── Walk-in appointment ───────────────────────────────────────────────────────
+
+Future<void> createWalkInAppointment({
+  required String doctorId,
+  required String createdByUid,
+  required String patientName,
+  String? phone,
+}) async {
+  // Find next token number for today
+  int tokenNo = 1;
+  try {
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final end = start.add(const Duration(days: 1));
+    final rows = await _db
+        .from('appointments')
+        .select('token_no')
+        .eq('doctor_id', doctorId)
+        .gte('scheduled_at', start.toIso8601String())
+        .lt('scheduled_at', end.toIso8601String())
+        .order('token_no', ascending: false)
+        .limit(1);
+    if ((rows as List).isNotEmpty) {
+      tokenNo = ((rows.first as Map)['token_no'] as int? ?? 0) + 1;
+    }
+  } catch (_) {}
+
+  await _db.from('appointments').insert({
+    'doctor_id': doctorId,
+    'patient_id': createdByUid, // receptionist uid as placeholder
+    'type': 'in_person',
+    'scheduled_at': DateTime.now().toIso8601String(),
+    'chief_complaint': 'Walk-in: $patientName${phone != null && phone.isNotEmpty ? " · $phone" : ""}',
+    'status': 'pending',
+    'token_no': tokenNo,
+  });
 }

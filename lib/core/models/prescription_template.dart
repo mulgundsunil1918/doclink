@@ -91,7 +91,7 @@ class PrescriptionSettings {
         'clinic_email': clinicEmail,
         'clinic_hotline': clinicHotline,
         'header_color':
-            '#${headerColor.value.toRadixString(16).substring(2).toUpperCase()}',
+            '#${(headerColor.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}',
         'degrees': degrees,
         'show_vitals': showVitals,
         'show_history': showHistory,

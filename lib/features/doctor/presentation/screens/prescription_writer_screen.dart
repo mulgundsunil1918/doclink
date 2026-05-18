@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/models/prescription_template.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/services/gemini_service.dart';
@@ -334,15 +335,19 @@ class _PrescriptionWriterScreenState
                             final result = await _gemini.generateFullRx(
                                 doctorInput: text, patientContext: ctx);
                             _applyAiResult(result);
-                            if (mounted) Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('AI filled the prescription — please review each section')),
-                            );
+                            if (mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('AI filled the prescription — please review each section')),
+                              );
+                            }
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('AI error: $e')),
-                            );
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('AI error: $e')),
+                              );
+                            }
                           } finally {
                             setSheet(() => _isAiFilling = false);
                           }
@@ -691,7 +696,7 @@ class _PrescriptionWriterScreenState
           title: const Text('Substitution Allowed'),
           value: _substitutionAllowed,
           onChanged: (v) => setState(() => _substitutionAllowed = v),
-          activeColor: AppColors.doctorPrimary,
+          activeThumbColor: AppColors.doctorPrimary,
           contentPadding: EdgeInsets.zero,
         ),
         const SizedBox(height: 8),
@@ -824,6 +829,45 @@ class _PrescriptionWriterScreenState
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final svc = PrescriptionPdfService();
+                    final bytes = await svc.generate(
+                      dummyRx, doc, doc.prescriptionSettings,
+                      patientName: _ptNameCtrl.text,
+                      patientAge: _ptAgeCtrl.text,
+                      patientGender: _ptGenderCtrl.text,
+                      patientContact: _ptContactCtrl.text,
+                      patientLocation: _ptLocationCtrl.text,
+                    );
+                    final phone = _ptContactCtrl.text.replaceAll(RegExp(r'[^\d]'), '');
+                    try {
+                      // Try WhatsApp file share via share_plus
+                      await svc.share(
+                        bytes,
+                        'Rx-${dummyRx.id.substring(0, 8)}.pdf',
+                      );
+                    } catch (_) {
+                      // Fallback: open WhatsApp with text if phone available
+                      if (phone.isNotEmpty) {
+                        final indiaPhone = phone.startsWith('91') ? phone : '91$phone';
+                        final uri = Uri.parse('https://wa.me/$indiaPhone');
+                        if (await canLaunchUrl(uri)) await launchUrl(uri);
+                      }
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF25D366),
+                    side: const BorderSide(color: Color(0xFF25D366)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.share_rounded, size: 18),
+                  label: const Text('Share on WhatsApp'),
+                ),
               ),
             ],
           ),

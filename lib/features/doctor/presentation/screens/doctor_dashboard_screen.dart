@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'my_patients_screen.dart';
 
 class DoctorDashboardScreen extends ConsumerWidget {
   final void Function(int) onNavigate;
@@ -216,8 +217,9 @@ class DoctorDashboardScreen extends ConsumerWidget {
               delegate: SliverChildListDelegate([
                 _SectionLabel('Quick Actions'),
                 const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 12,
                   children: [
                     _ActionBtn(
                         icon: Icons.video_call_rounded,
@@ -228,8 +230,16 @@ class DoctorDashboardScreen extends ConsumerWidget {
                         icon: Icons.edit_note_rounded,
                         label: 'Write Rx',
                         color: AppColors.accentDark,
-                        onTap: () =>
-                            context.push('/doctor/rx')),
+                        onTap: () => context.push('/doctor/rx')),
+                    _ActionBtn(
+                        icon: Icons.people_alt_rounded,
+                        label: 'My Patients',
+                        color: const Color(0xFF059669),
+                        onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const MyPatientsScreen()),
+                            )),
                     _ActionBtn(
                         icon: Icons.calendar_today_rounded,
                         label: 'Slots',
