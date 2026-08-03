@@ -176,6 +176,19 @@ class _PrescriptionWriterScreenState
     final doc = ref.read(currentDoctorProvider).valueOrNull;
     if (doc == null) return;
 
+    // RLS refuses the insert once a subscription lapses; say so plainly rather
+    // than letting the doctor lose a written prescription to a generic error.
+    if (!doc.subscriptionActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Your subscription has expired — renew to write new prescriptions. '
+              'Existing records are unaffected.'),
+        ),
+      );
+      return;
+    }
+
     final diagnosis = _primaryDxCtrl.text.trim();
     if (diagnosis.isEmpty) {
       _tabs.animateTo(1);

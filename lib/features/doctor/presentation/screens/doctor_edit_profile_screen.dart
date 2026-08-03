@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/app_providers.dart';
+import '../../../../core/services/payment/upi_payment_service.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class DoctorEditProfileScreen extends ConsumerStatefulWidget {
@@ -219,10 +220,21 @@ class _DoctorEditProfileScreenState
               icon: Icons.account_balance_wallet_outlined,
               hint: 'yourname@paytm',
               keyboardType: TextInputType.emailAddress,
+              // A typo here means patients cannot pay you at all, so catch it
+              // before it reaches the booking screen.
+              validator: (v) {
+                final s = (v ?? '').trim();
+                if (s.isEmpty) return null;
+                return UpiPaymentService.isValidVpa(s)
+                    ? null
+                    : 'Enter a valid UPI ID, e.g. yourname@paytm';
+              },
             ),
             const SizedBox(height: 12),
             const Text(
-              'Patients will send payment to your UPI ID when you receive payouts.',
+              'Patients pay this UPI ID directly — the money goes straight to '
+              'your bank. Doclink never holds it and takes no cut. Leave blank '
+              'to collect payment at your clinic instead.',
               style: TextStyle(color: AppColors.slate400, fontSize: 12),
             ),
             const SizedBox(height: 32),

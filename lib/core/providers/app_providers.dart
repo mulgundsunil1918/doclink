@@ -39,6 +39,13 @@ class AppDoctor {
   final double consultationFee, rating, earningsToday, earningsMonth;
   final int totalPatients;
   final bool available, kycVerified;
+
+  /// Platform subscription — Doclink's only revenue. When this lapses the
+  /// doctor drops to read-only: existing records stay fully readable, but no
+  /// new bookings or prescriptions. Mirrored by RLS in migration 007, so the
+  /// UI checks here are a courtesy, not the enforcement.
+  final String plan, planState;
+  final DateTime? planExpiresAt;
   final PrescriptionSettings prescriptionSettings;
   const AppDoctor({
     required this.id,
@@ -59,9 +66,22 @@ class AppDoctor {
     required this.totalPatients,
     required this.available,
     required this.kycVerified,
+    this.plan = 'trial',
+    this.planState = 'active',
+    this.planExpiresAt,
     PrescriptionSettings? prescriptionSettings,
   }) : prescriptionSettings =
             prescriptionSettings ?? PrescriptionSettings.defaults;
+
+  /// True while the doctor can still create new bookings and prescriptions.
+  bool get subscriptionActive =>
+      planState == 'active' &&
+      (planExpiresAt == null || planExpiresAt!.isAfter(DateTime.now()));
+
+  /// Days remaining, or null when there is no expiry set.
+  int? get daysLeft => planExpiresAt == null
+      ? null
+      : planExpiresAt!.difference(DateTime.now()).inDays;
   factory AppDoctor.fromMap(Map<String, dynamic> m) {
     final doc = (m['doctors'] as Map<String, dynamic>?) ?? {};
     final rxRaw = doc['prescription_settings'];
@@ -91,6 +111,9 @@ class AppDoctor {
       totalPatients: doc['total_patients'] as int? ?? 0,
       available: doc['available'] as bool? ?? true,
       kycVerified: doc['kyc_verified'] as bool? ?? false,
+      plan: doc['plan'] as String? ?? 'trial',
+      planState: doc['plan_state'] as String? ?? 'active',
+      planExpiresAt: DateTime.tryParse(doc['plan_expires_at'] as String? ?? ''),
       prescriptionSettings: rxSettings,
     );
   }
@@ -621,7 +644,12 @@ class AppPayment {
   final String id, appointmentId, patientId, method, status;
   final double amount;
   final DateTime createdAt;
-  final String? doctorName, appointmentType;
+  final String? doctorName, appointmentType, patientName;
+
+  /// Reference the patient copied out of their UPI app. It is their claim that
+  /// the transfer happened — [verifiedByDoctor] is what makes it real.
+  final String? upiUtr;
+  final bool verifiedByDoctor;
   const AppPayment({
     required this.id,
     required this.appointmentId,
@@ -632,7 +660,25 @@ class AppPayment {
     required this.createdAt,
     this.doctorName,
     this.appointmentType,
+    this.patientName,
+    this.upiUtr,
+    this.verifiedByDoctor = false,
   });
+
+  AppPayment withPatientName(String? name) => AppPayment(
+        id: id,
+        appointmentId: appointmentId,
+        patientId: patientId,
+        method: method,
+        status: status,
+        amount: amount,
+        createdAt: createdAt,
+        doctorName: doctorName,
+        appointmentType: appointmentType,
+        patientName: name,
+        upiUtr: upiUtr,
+        verifiedByDoctor: verifiedByDoctor,
+      );
   factory AppPayment.fromMap(Map<String, dynamic> m) => AppPayment(
         id: m['id'] ?? '',
         appointmentId: m['appointment_id'] ?? '',
@@ -641,6 +687,8 @@ class AppPayment {
         status: m['status'] ?? 'pending',
         amount: (m['amount'] as num? ?? 0).toDouble(),
         createdAt: DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
+        upiUtr: m['upi_utr'] as String?,
+        verifiedByDoctor: m['verified_by_doctor'] as bool? ?? false,
       );
   String get formattedDate {
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1025,21 +1073,73 @@ Future<void> updateDoctorUpiId(String upiId) async {
   await _db.from('doctors').update({'upi_id': upiId}).eq('id', uid);
 }
 
+/// Records a fee the patient paid straight into the doctor's UPI account.
+///
+/// The money never passes through Doclink, so there is no gateway callback to
+/// trust: the row stays `pending` until the doctor confirms the credit landed.
 Future<void> savePayment({
   required String appointmentId,
   required String patientId,
   required double amount,
   required String method,
-  required String razorpayPaymentId,
+  String? upiTxnRef,
+  String? upiUtr,
+  String? paidToUpiId,
 }) async {
   await _db.from('payments').insert({
     'appointment_id': appointmentId,
     'patient_id': patientId,
     'amount': amount,
     'method': method.toLowerCase(),
-    'status': 'completed',
-    'razorpay_payment_id': razorpayPaymentId,
+    'status': 'pending',
+    'upi_txn_ref': upiTxnRef,
+    'upi_utr': upiUtr,
+    'paid_to_upi_id': paidToUpiId,
+    'verified_by_doctor': false,
   });
+}
+
+/// Payments a patient says they sent, still waiting on the doctor to confirm
+/// the money actually arrived. Nothing else in the app can tell them apart from
+/// a claim, because Doclink is not in the money path.
+final doctorPendingPaymentsProvider =
+    FutureProvider.autoDispose<List<AppPayment>>((ref) async {
+  final uid = _uid;
+  if (uid == null) return [];
+  try {
+    final rows = await _db
+        .from('payments')
+        .select('*, appointments!inner(type, doctor_id)')
+        .eq('appointments.doctor_id', uid)
+        .eq('status', 'pending')
+        .order('created_at', ascending: false);
+
+    final payments =
+        (rows as List).map((e) => AppPayment.fromMap(e as Map<String, dynamic>));
+
+    // Resolve patient names in one round trip so the doctor can recognise them.
+    final ids = payments.map((p) => p.patientId).toSet().toList();
+    if (ids.isEmpty) return payments.toList();
+
+    final profiles =
+        await _db.from('profiles').select('id, name').inFilter('id', ids);
+    final names = {
+      for (final p in profiles as List)
+        (p as Map<String, dynamic>)['id'] as String: p['name'] as String?,
+    };
+    return payments.map((p) => p.withPatientName(names[p.patientId])).toList();
+  } catch (_) {
+    return [];
+  }
+});
+
+/// Doctor's confirmation that a UPI transfer actually reached their bank.
+Future<void> verifyPayment(String paymentId, {required bool received}) async {
+  await _db.from('payments').update({
+    'status': received ? 'success' : 'failed',
+    'verified_by_doctor': received,
+    'verified_at': DateTime.now().toUtc().toIso8601String(),
+  }).eq('id', paymentId);
 }
 
 String _generateVerificationCode() {

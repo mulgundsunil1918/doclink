@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/subscription_banner.dart';
 import 'doctor_dashboard_screen.dart';
 import 'schedule_screen.dart';
 import 'doctor_profile_screen.dart';
@@ -36,7 +37,14 @@ class _DoctorShellScreenState extends State<DoctorShellScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
+      body: Column(
+        children: [
+          const SubscriptionBanner(),
+          Expanded(
+            child: IndexedStack(index: _index, children: _screens),
+          ),
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.surface,

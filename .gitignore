@@ -49,3 +49,7 @@ app.*.map.json
 .env.secret
 groq.env
 supabase/.temp/
+
+# Generated knowledge-graph output — regenerate with /graphify, never commit.
+# Unanchored so it also catches stray copies inside source directories.
+graphify-out/

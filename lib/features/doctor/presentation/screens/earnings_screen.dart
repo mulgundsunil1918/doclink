@@ -1,8 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -48,7 +46,6 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
   ) {
     final earningsToday = doc?.earningsToday ?? 0;
     final earningsMonth = doc?.earningsMonth ?? 0;
-    final walletBalance = earningsMonth * 0.9;
 
     // Build chart data — use real monthly if available, else zeros
     final chartData = monthly.isNotEmpty
@@ -94,6 +91,7 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           children: [
+            const _PendingUpiPayments(),
             Row(
               children: [
                 Expanded(
@@ -167,29 +165,24 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Wallet Balance',
+                        const Text('Paid Directly To You',
                             style: TextStyle(
                                 color: AppColors.slate400, fontSize: 12)),
                         Text(
-                          walletBalance >= 1000
-                              ? '₹${(walletBalance / 1000).toStringAsFixed(1)}k'
-                              : '₹${walletBalance.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.w700),
+                          doc?.upiId ?? 'No UPI ID set',
+                          style: TextStyle(
+                              fontSize: doc?.upiId == null ? 15 : 18,
+                              fontWeight: FontWeight.w700,
+                              color: doc?.upiId == null
+                                  ? AppColors.slate400
+                                  : null),
                         ),
-                        const Text('90% of monthly earnings',
+                        const Text(
+                            'Doclink takes no cut — you keep 100%',
                             style: TextStyle(
                                 color: AppColors.slate400, fontSize: 11)),
                       ],
                     ),
-                  ),
-                  ElevatedButton(
-                    onPressed: walletBalance > 0
-                        ? () => _showWithdrawSheet(context, walletBalance, doc)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(100, 40)),
-                    child: const Text('Withdraw'),
                   ),
                 ],
               ),
@@ -351,148 +344,6 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
     );
   }
 
-  void _showWithdrawSheet(BuildContext context, double balance, AppDoctor? doc) {
-    final upiId = doc?.upiId;
-    final doctorName = doc?.name ?? 'Doctor';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.doctorCard,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Withdraw ₹${balance.toStringAsFixed(0)}',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
-            const Text(
-              'Your earnings will be sent to your UPI ID.',
-              style: TextStyle(color: AppColors.slate500, fontSize: 13),
-            ),
-            const SizedBox(height: 20),
-
-            if (upiId != null) ...[
-              // UPI ID display
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.doctorAccent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: AppColors.doctorAccent.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.currency_rupee_rounded,
-                        color: AppColors.doctorAccent, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('UPI ID',
-                              style: TextStyle(
-                                  color: AppColors.slate400, fontSize: 11)),
-                          Text(upiId,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15)),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.copy_rounded,
-                          size: 20, color: AppColors.slate400),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: upiId));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('UPI ID copied to clipboard')),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Open UPI app button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final uri = Uri.parse(
-                      'upi://pay?pa=${Uri.encodeComponent(upiId)}'
-                      '&pn=${Uri.encodeComponent('Dr $doctorName')}'
-                      '&am=${balance.toStringAsFixed(2)}'
-                      '&cu=INR'
-                      '&tn=${Uri.encodeComponent('Doclink Payout')}',
-                    );
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri);
-                    } else {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                'No UPI app found. Please copy the UPI ID and pay manually.'),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.open_in_new_rounded),
-                  label: Text('Pay ₹${balance.toStringAsFixed(0)} via UPI App'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.doctorAccent,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Center(
-                child: Text(
-                  'Opens PhonePe · GPay · Paytm · any UPI app',
-                  style:
-                      TextStyle(color: AppColors.slate400, fontSize: 11),
-                ),
-              ),
-            ] else ...[
-              // No UPI ID set
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: AppColors.warning.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline_rounded,
-                        color: AppColors.warning),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'No UPI ID saved. Go to My Profile → UPI Payout ID to add it.',
-                        style: TextStyle(fontSize: 13, height: 1.4),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _BreakdownRow extends StatelessWidget {
@@ -542,6 +393,134 @@ class _BreakdownRow extends StatelessWidget {
             minHeight: 4,
             borderRadius: BorderRadius.circular(2),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Money patients say they sent by UPI, waiting on the doctor to confirm it
+/// landed. Doclink is not in the money path, so only the doctor's own bank
+/// statement can settle this — the app just tracks the claim.
+class _PendingUpiPayments extends ConsumerWidget {
+  const _PendingUpiPayments();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(doctorPendingPaymentsProvider);
+
+    return pending.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (payments) {
+        if (payments.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+          child: DlCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.pending_actions_rounded,
+                        size: 18, color: Color(0xFF92400E)),
+                    const SizedBox(width: 8),
+                    Text('${payments.length} payment'
+                        '${payments.length == 1 ? '' : 's'} to confirm',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.slate900)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Check your bank or UPI app, then confirm whether the money '
+                  'arrived.',
+                  style: TextStyle(color: AppColors.slate400, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                for (final p in payments) _PendingRow(payment: p),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PendingRow extends ConsumerStatefulWidget {
+  final AppPayment payment;
+  const _PendingRow({required this.payment});
+
+  @override
+  ConsumerState<_PendingRow> createState() => _PendingRowState();
+}
+
+class _PendingRowState extends ConsumerState<_PendingRow> {
+  bool _busy = false;
+
+  Future<void> _resolve(bool received) async {
+    setState(() => _busy = true);
+    try {
+      await verifyPayment(widget.payment.id, received: received);
+      ref.invalidate(doctorPendingPaymentsProvider);
+      ref.invalidate(currentDoctorProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update: $e')),
+        );
+      }
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.payment;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('₹${p.amount.toInt()} · ${p.patientName ?? 'Patient'}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.slate900)),
+                Text(
+                  p.upiUtr?.isNotEmpty == true
+                      ? 'UTR ${p.upiUtr}'
+                      : 'To be paid at clinic',
+                  style: const TextStyle(
+                      color: AppColors.slate400, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          if (_busy)
+            const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2))
+          else ...[
+            IconButton(
+              tooltip: 'Money did not arrive',
+              icon: const Icon(Icons.close_rounded,
+                  size: 20, color: AppColors.slate400),
+              onPressed: () => _resolve(false),
+            ),
+            IconButton(
+              tooltip: 'Confirm received',
+              icon: const Icon(Icons.check_circle_rounded,
+                  size: 22, color: Color(0xFF16A34A)),
+              onPressed: () => _resolve(true),
+            ),
+          ],
         ],
       ),
     );

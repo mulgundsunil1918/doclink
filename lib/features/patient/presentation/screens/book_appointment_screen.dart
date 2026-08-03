@@ -1,10 +1,9 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/config/payment_config.dart';
 import '../../../../core/providers/app_providers.dart';
-import '../../../../core/services/payment/payment_service.dart';
+import '../../../../core/services/payment/upi_payment_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
@@ -158,6 +157,7 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
           slot: _selectedSlot,
           doctorName: _selectedDoctor?.name ?? 'Doctor',
           doctorFee: _selectedDoctor?.consultationFee ?? 500,
+          doctorUpiId: _selectedDoctor?.upiId,
           onPay: _handlePayment,
           patientPhone: ref.read(currentProfileProvider).valueOrNull?.phone,
         ),
@@ -217,7 +217,8 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
     return '$h:$m $period';
   }
 
-  Future<void> _handlePayment(String razorpayPaymentId, String method) async {
+  Future<void> _handlePayment(
+      String utr, String txnRef, String? paidToUpiId) async {
     final patientId = ref.read(currentProfileProvider).valueOrNull?.id;
     final doctor = _selectedDoctor;
     if (patientId == null || doctor == null) return;
@@ -258,8 +259,10 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
           appointmentId: id,
           patientId: patientId,
           amount: amount,
-          method: method,
-          razorpayPaymentId: razorpayPaymentId,
+          method: paidToUpiId == null ? 'cash' : 'upi',
+          upiTxnRef: txnRef,
+          upiUtr: utr,
+          paidToUpiId: paidToUpiId,
         );
       }
       setState(() {
@@ -617,13 +620,20 @@ class _Legend extends StatelessWidget {
 class _PaymentStep extends StatefulWidget {
   final String type, slot, doctorName;
   final double doctorFee;
+  final String? doctorUpiId;
   final String? patientPhone;
-  final Future<void> Function(String paymentId, String method) onPay;
+
+  /// Reports the patient's UTR, our transaction reference, and the VPA the
+  /// money was sent to. Doclink is never in the money path, so this is a claim
+  /// the doctor still has to confirm against their own bank.
+  final Future<void> Function(String utr, String txnRef, String? paidToUpiId)
+      onPay;
   const _PaymentStep({
     required this.type,
     required this.slot,
     required this.doctorName,
     required this.doctorFee,
+    required this.doctorUpiId,
     required this.onPay,
     this.patientPhone,
   });
@@ -633,9 +643,6 @@ class _PaymentStep extends StatefulWidget {
 }
 
 class _PaymentStepState extends State<_PaymentStep> {
-  final _payment = RazorpayService();
-  bool _paying = false;
-
   static const _feeMultiplier = {
     'Video': 1.0,
     'Audio': 0.75,
@@ -643,46 +650,62 @@ class _PaymentStepState extends State<_PaymentStep> {
     'In-Person': 0.5,
   };
 
-  @override
-  void initState() {
-    super.initState();
-    _payment.init(
-      onSuccess: (paymentId) {
-        if (mounted) setState(() => _paying = false);
-        widget.onPay(paymentId, 'razorpay');
-      },
-      onError: (message) {
-        if (mounted) {
-          setState(() => _paying = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), backgroundColor: Colors.red),
-          );
-        }
-      },
-    );
-  }
+  late final String _txnRef = UpiPaymentService.newTxnRef();
+  final _utrCtrl = TextEditingController();
+
+  /// True once the patient has been handed to their UPI app (or told to pay
+  /// manually) and we are waiting for them to come back with the reference.
+  bool _awaitingUtr = false;
+  bool _submitting = false;
+
+  bool get _hasUpi => UpiPaymentService.isValidVpa(widget.doctorUpiId);
+
+  double get _fee => widget.doctorFee * (_feeMultiplier[widget.type] ?? 1.0);
 
   @override
   void dispose() {
-    _payment.dispose();
+    _utrCtrl.dispose();
     super.dispose();
   }
 
-  double get _fee =>
-      widget.doctorFee * (_feeMultiplier[widget.type] ?? 1.0);
-
-  void _openCheckout() {
-    setState(() => _paying = true);
-    _payment.open(
-      keyId: PaymentConfig.razorpayKeyId,
-      amountPaise: (_fee * 100).toInt(),
-      name: PaymentConfig.appName,
-      description: '${widget.type} Consultation · Dr. ${widget.doctorName}',
-      contact: widget.patientPhone,
+  Future<void> _launchUpi() async {
+    final result = await UpiPaymentService.pay(
+      payeeVpa: widget.doctorUpiId,
+      payeeName: 'Dr. ${widget.doctorName}',
+      amount: _fee,
+      note: '${widget.type} consultation',
+      txnRef: _txnRef,
     );
-    // On web the stub calls onSuccess synchronously, so reset paying state
-    if (kIsWeb) setState(() => _paying = false);
+    if (!mounted) return;
+
+    setState(() => _awaitingUtr = true);
+    if (result == UpiLaunchResult.noUpiApp) {
+      _snack('No UPI app found. Send ₹${_fee.toInt()} to '
+          '${widget.doctorUpiId} from any UPI app, then enter the reference.');
+    }
   }
+
+  Future<void> _submitUtr() async {
+    final utr = _utrCtrl.text.trim();
+    if (utr.length < 6) {
+      _snack('Enter the UPI reference / UTR shown in your payment app.');
+      return;
+    }
+    setState(() => _submitting = true);
+    await widget.onPay(utr, _txnRef, widget.doctorUpiId);
+    if (mounted) setState(() => _submitting = false);
+  }
+
+  /// Doctor has not set up UPI yet — book the slot and settle at the clinic.
+  Future<void> _payAtClinic() async {
+    setState(() => _submitting = true);
+    await widget.onPay('', _txnRef, null);
+    if (mounted) setState(() => _submitting = false);
+  }
+
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: AppColors.slate900),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -732,74 +755,174 @@ class _PaymentStepState extends State<_PaymentStep> {
         ),
         const SizedBox(height: 16),
 
-        // Razorpay info banner
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.patientPrimary.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-                color: AppColors.patientPrimary.withValues(alpha: 0.2),
-                width: 0.5),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.lock_rounded,
-                  color: AppColors.patientPrimary, size: 18),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'Secured by Razorpay. Pay via UPI, Card, NetBanking, or Wallet — all in one checkout.',
-                  style: TextStyle(
-                      color: AppColors.slate600,
-                      fontSize: 12,
-                      height: 1.4),
+        // Who the money actually goes to — this is a direct transfer, so the
+        // patient should see the doctor's own UPI ID before they send it.
+        if (_hasUpi)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.patientPrimary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: AppColors.patientPrimary.withValues(alpha: 0.2),
+                  width: 0.5),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.account_balance_rounded,
+                    color: AppColors.patientPrimary, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Paid directly to your doctor',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: AppColors.slate900)),
+                      const SizedBox(height: 2),
+                      Text(widget.doctorUpiId!,
+                          style: const TextStyle(
+                              color: AppColors.slate600,
+                              fontSize: 12,
+                              height: 1.4)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                IconButton(
+                  tooltip: 'Copy UPI ID',
+                  icon: const Icon(Icons.copy_rounded,
+                      size: 16, color: AppColors.slate500),
+                  onPressed: () {
+                    Clipboard.setData(
+                        ClipboardData(text: widget.doctorUpiId!));
+                    _snack('UPI ID copied');
+                  },
+                ),
+              ],
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: Colors.amber.withValues(alpha: 0.4), width: 0.5),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline_rounded,
+                    color: Color(0xFF92400E), size: 18),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'This doctor has not set up online payments yet. You can '
+                    'book now and pay at the clinic.',
+                    style: TextStyle(
+                        color: Color(0xFF92400E), fontSize: 12, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         const SizedBox(height: 20),
 
-        // Pay button — opens Razorpay native checkout
-        ElevatedButton(
-          onPressed: _paying ? null : _openCheckout,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.patientPrimary,
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+        // Step 1: hand off to the patient's UPI app.
+        if (_hasUpi && !_awaitingUtr)
+          ElevatedButton(
+            onPressed: _launchUpi,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.patientPrimary,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.account_balance_wallet_rounded, size: 20),
+                const SizedBox(width: 8),
+                Text('Pay ₹$fee via UPI',
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
-          child: _paying
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.payment_rounded, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      kIsWeb ? 'Confirm Booking' : 'Pay ₹$fee · Razorpay',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-        ),
+
+        // Step 2: the bank tells us nothing, so the patient supplies the UTR.
+        if (_hasUpi && _awaitingUtr) ...[
+          TextField(
+            controller: _utrCtrl,
+            textCapitalization: TextCapitalization.characters,
+            decoration: InputDecoration(
+              labelText: 'UPI reference / UTR',
+              hintText: 'e.g. 412345678901',
+              helperText: 'Shown in your UPI app next to the payment',
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: _submitting ? null : _submitUtr,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.patientPrimary,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: _submitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Text("I've Paid — Confirm Booking",
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: _submitting ? null : _launchUpi,
+            child: const Text('Re-open UPI app'),
+          ),
+        ],
+
+        // Doctor has no UPI configured — book now, settle in person.
+        if (!_hasUpi)
+          ElevatedButton(
+            onPressed: _submitting ? null : _payAtClinic,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.patientPrimary,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: _submitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : Text('Book & Pay ₹$fee at Clinic',
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+          ),
         const SizedBox(height: 8),
-        Center(
+        const Center(
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: const [
-              Icon(Icons.verified_user_rounded,
-                  size: 12, color: AppColors.slate400),
+            children: [
+              Icon(Icons.lock_rounded, size: 12, color: AppColors.slate400),
               SizedBox(width: 4),
-              Text('256-bit SSL · PCI DSS Compliant',
-                  style: TextStyle(
-                      color: AppColors.slate400, fontSize: 10)),
+              Flexible(
+                child: Text(
+                  'Paid bank-to-bank via UPI. Doclink never holds your money.',
+                  style: TextStyle(color: AppColors.slate400, fontSize: 10),
+                ),
+              ),
             ],
           ),
         ),
