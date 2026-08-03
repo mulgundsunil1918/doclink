@@ -37,6 +37,9 @@ class AppDoctor {
   final String? phone, city, clinicName, registrationNo, whatsappNumber, bio,
       avatarUrl, upiId;
   final double consultationFee, rating, earningsToday, earningsMonth;
+
+  /// Per-type fees. Null means "derive from [consultationFee]" — see [feeFor].
+  final double? feeVideo, feeAudio, feeChat, feeInPerson;
   final int totalPatients;
   final bool available, kycVerified;
 
@@ -60,6 +63,10 @@ class AppDoctor {
     this.avatarUrl,
     this.upiId,
     required this.consultationFee,
+    this.feeVideo,
+    this.feeAudio,
+    this.feeChat,
+    this.feeInPerson,
     required this.rating,
     required this.earningsToday,
     required this.earningsMonth,
@@ -72,6 +79,50 @@ class AppDoctor {
     PrescriptionSettings? prescriptionSettings,
   }) : prescriptionSettings =
             prescriptionSettings ?? PrescriptionSettings.defaults;
+
+  /// The fee the doctor charges for one consultation type, in rupees.
+  ///
+  /// Falls back to the historical multiplier off [consultationFee] when the
+  /// doctor has not set an explicit price, so a doctor who never opens the
+  /// pricing screen keeps exactly the rates they had before.
+  ///
+  /// This is the single source of truth for what a patient is charged — the
+  /// booking screen, the profile summary and the edit screen all read it, so
+  /// they cannot drift apart.
+  double feeFor(String type) {
+    final explicit = switch (type.toLowerCase()) {
+      'video' => feeVideo,
+      'audio' => feeAudio,
+      'chat' => feeChat,
+      'in-person' || 'in person' || 'inperson' => feeInPerson,
+      _ => null,
+    };
+    if (explicit != null) return explicit;
+
+    return consultationFee * defaultFeeMultiplier(type);
+  }
+
+  /// The legacy ratios, kept in one place now rather than copied across
+  /// screens. Only used when a doctor has not set an explicit fee.
+  static double defaultFeeMultiplier(String type) =>
+      switch (type.toLowerCase()) {
+        'audio' => 0.75,
+        'chat' => 0.5,
+        'in-person' || 'in person' || 'inperson' => 0.5,
+        _ => 1.0,
+      };
+
+  /// The consultation types a doctor can price, in display order.
+  static const feeTypes = ['Video', 'Audio', 'Chat', 'In-Person'];
+
+  /// True when this type has been priced explicitly rather than derived.
+  bool hasExplicitFee(String type) => switch (type.toLowerCase()) {
+        'video' => feeVideo != null,
+        'audio' => feeAudio != null,
+        'chat' => feeChat != null,
+        'in-person' || 'in person' || 'inperson' => feeInPerson != null,
+        _ => false,
+      };
 
   /// True while the doctor can still create new bookings and prescriptions.
   bool get subscriptionActive =>
@@ -105,6 +156,10 @@ class AppDoctor {
       bio: doc['bio'] as String?,
       upiId: doc['upi_id'] as String?,
       consultationFee: (doc['consultation_fee'] as num? ?? 500).toDouble(),
+      feeVideo: (doc['fee_video'] as num?)?.toDouble(),
+      feeAudio: (doc['fee_audio'] as num?)?.toDouble(),
+      feeChat: (doc['fee_chat'] as num?)?.toDouble(),
+      feeInPerson: (doc['fee_in_person'] as num?)?.toDouble(),
       rating: (doc['rating'] as num? ?? 0).toDouble(),
       earningsToday: (doc['earnings_today'] as num? ?? 0).toDouble(),
       earningsMonth: (doc['earnings_month'] as num? ?? 0).toDouble(),
@@ -1039,6 +1094,13 @@ Future<void> updateDoctorProfile({
   double? consultationFee,
   bool? available,
   PrescriptionSettings? prescriptionSettings,
+  /// Per-type fees keyed by 'Video' | 'Audio' | 'Chat' | 'In-Person'.
+  ///
+  /// Passed as a map rather than four nullable arguments because null is
+  /// meaningful here: a null *value* clears the explicit fee and returns that
+  /// type to being derived from the base fee, whereas omitting the map
+  /// entirely leaves all four untouched.
+  Map<String, double?>? fees,
 }) async {
   final profileMap = <String, dynamic>{};
   if (name != null) profileMap['name'] = name;
@@ -1056,6 +1118,13 @@ Future<void> updateDoctorProfile({
   if (whatsappNumber != null) docMap['whatsapp_number'] = whatsappNumber;
   if (upiId != null) docMap['upi_id'] = upiId;
   if (consultationFee != null) docMap['consultation_fee'] = consultationFee;
+  if (fees != null) {
+    // Writes nulls deliberately — that is how a rate goes back to auto.
+    docMap['fee_video'] = fees['Video'];
+    docMap['fee_audio'] = fees['Audio'];
+    docMap['fee_chat'] = fees['Chat'];
+    docMap['fee_in_person'] = fees['In-Person'];
+  }
   if (available != null) docMap['available'] = available;
   if (prescriptionSettings != null) {
     docMap['prescription_settings'] = prescriptionSettings.toJson();

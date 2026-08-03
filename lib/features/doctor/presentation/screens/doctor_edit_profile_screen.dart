@@ -17,6 +17,9 @@ class DoctorEditProfileScreen extends ConsumerStatefulWidget {
 class _DoctorEditProfileScreenState
     extends ConsumerState<DoctorEditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
+
+  /// One controller per consultation type, keyed by [AppDoctor.feeTypes].
+  final _rates = <String, TextEditingController>{};
   bool _saving = false;
   late bool _available;
 
@@ -47,13 +50,21 @@ class _DoctorEditProfileScreenState
     _upiId = TextEditingController(text: d.upiId ?? '');
     _fee =
         TextEditingController(text: d.consultationFee.toStringAsFixed(0));
+    // Only pre-fill a rate the doctor actually set. Leaving a derived rate
+    // blank is what keeps it following the base fee.
+    for (final type in AppDoctor.feeTypes) {
+      _rates[type] = TextEditingController(
+        text: d.hasExplicitFee(type) ? d.feeFor(type).toStringAsFixed(0) : '',
+      );
+    }
     _available = d.available;
   }
 
   @override
   void dispose() {
     for (final c in [
-      _name, _phone, _specialty, _regNo, _city, _clinic, _bio, _whatsapp, _upiId, _fee
+      _name, _phone, _specialty, _regNo, _city, _clinic, _bio, _whatsapp, _upiId, _fee,
+      ..._rates.values,
     ]) {
       c.dispose();
     }
@@ -79,6 +90,14 @@ class _DoctorEditProfileScreenState
             _whatsapp.text.trim().isEmpty ? null : _whatsapp.text.trim(),
         upiId: _upiId.text.trim().isEmpty ? null : _upiId.text.trim(),
         consultationFee: double.tryParse(_fee.text.trim()),
+        // A blank field sends null, which clears the explicit rate and returns
+        // that type to following the base fee.
+        fees: {
+          for (final type in AppDoctor.feeTypes)
+            type: _rates[type]!.text.trim().isEmpty
+                ? null
+                : double.tryParse(_rates[type]!.text.trim()),
+        },
         available: _available,
       );
       ref.invalidate(currentDoctorProvider);
@@ -193,7 +212,12 @@ class _DoctorEditProfileScreenState
                 return null;
               },
             ),
-            _RatePreview(fee: feeVal),
+            _RatePreview(
+              fee: feeVal,
+              controllers: _rates,
+              // Repaints the blank-field hints as the base fee is typed.
+              onChanged: () => setState(() {}),
+            ),
 
             const SizedBox(height: 8),
             _Section(label: 'Availability'),
@@ -343,19 +367,34 @@ class _Field extends StatelessWidget {
   }
 }
 
-// ── Rate preview ───────────────────────────────────────────────────────────────
+// ── Per-type rates ─────────────────────────────────────────────────────────────
+/// Each consultation type is priced independently.
+///
+/// A rate left blank follows the base fee using the old ratios, so a doctor who
+/// only wants one number still gets sensible pricing; typing over any row pins
+/// that type to an explicit price.
 class _RatePreview extends StatelessWidget {
+  const _RatePreview({
+    required this.fee,
+    required this.controllers,
+    required this.onChanged,
+  });
+
   final double fee;
-  const _RatePreview({required this.fee});
+
+  /// Keyed by the labels in [AppDoctor.feeTypes]. Empty text means "auto".
+  final Map<String, TextEditingController> controllers;
+  final VoidCallback onChanged;
+
+  static const _meta = {
+    'Video': (Icons.videocam_rounded, AppColors.doctorPrimary),
+    'Audio': (Icons.call_rounded, Color(0xFF7C3AED)),
+    'Chat': (Icons.chat_rounded, AppColors.doctorAccent),
+    'In-Person': (Icons.local_hospital_rounded, AppColors.warning),
+  };
 
   @override
   Widget build(BuildContext context) {
-    final rows = [
-      (Icons.videocam_rounded, 'Video', fee, AppColors.doctorPrimary),
-      (Icons.call_rounded, 'Audio', fee * 0.75, const Color(0xFF7C3AED)),
-      (Icons.chat_rounded, 'Chat', fee * 0.5, AppColors.doctorAccent),
-      (Icons.local_hospital_rounded, 'In-Person', fee * 0.5, AppColors.warning),
-    ];
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -368,29 +407,60 @@ class _RatePreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Derived rates (auto-calculated)',
+          const Text('Rate per consultation type',
               style: TextStyle(
                   color: AppColors.slate400,
                   fontSize: 11,
                   fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          ...rows.map((r) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Icon(r.$1, size: 16, color: r.$4),
-                    const SizedBox(width: 8),
-                    Expanded(
-                        child: Text(r.$2,
-                            style: const TextStyle(fontSize: 12))),
-                    Text('₹${r.$3.toStringAsFixed(0)}',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                            color: r.$4)),
-                  ],
-                ),
-              )),
+          const SizedBox(height: 2),
+          const Text('Leave blank to follow your base fee',
+              style: TextStyle(color: AppColors.slate400, fontSize: 10)),
+          const SizedBox(height: 10),
+          ...AppDoctor.feeTypes.map((type) {
+            final (icon, color) = _meta[type]!;
+            final ctrl = controllers[type]!;
+            final derived = fee * AppDoctor.defaultFeeMultiplier(type);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Icon(icon, size: 16, color: color),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Text(type,
+                          style: const TextStyle(fontSize: 12))),
+                  SizedBox(
+                    width: 96,
+                    height: 38,
+                    child: TextFormField(
+                      controller: ctrl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: color),
+                      onChanged: (_) => onChanged(),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        prefixText: '₹',
+                        // Shows what this type costs today, so an empty field
+                        // never looks like a missing price.
+                        hintText: derived.toStringAsFixed(0),
+                        hintStyle: TextStyle(
+                            color: color.withValues(alpha: 0.45),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

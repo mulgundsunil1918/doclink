@@ -130,7 +130,11 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
       1 => _TypeSelector(
           types: _consultTypes,
           selected: _selectedType,
-          doctorFee: _selectedDoctor?.consultationFee ?? 500,
+          fees: {
+            for (final t in AppDoctor.feeTypes)
+              t: _selectedDoctor?.feeFor(t) ??
+                  500 * AppDoctor.defaultFeeMultiplier(t),
+          },
           onSelect: (t) => setState(() {
             _selectedType = t;
             _step = 2;
@@ -157,7 +161,10 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
           type: _selectedType,
           slot: _selectedSlot,
           doctorName: _selectedDoctor?.name ?? 'Doctor',
-          doctorFee: _selectedDoctor?.consultationFee ?? 500,
+          // Resolved for the chosen type here so the payment step charges
+          // exactly what the selection screen quoted.
+          doctorFee: _selectedDoctor?.feeFor(_selectedType) ??
+              500 * AppDoctor.defaultFeeMultiplier(_selectedType),
           doctorUpiId: _selectedDoctor?.upiId,
           onPay: _handlePayment,
           patientPhone: ref.read(currentProfileProvider).valueOrNull?.phone,
@@ -230,12 +237,6 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
       'Chat': 'chat',
       'In-Person': 'in_person',
     };
-    const feeMultiplier = {
-      'Video': 1.0,
-      'Audio': 0.75,
-      'Chat': 0.5,
-      'In-Person': 0.5,
-    };
 
     final now = DateTime.now();
     final slotParts = _selectedSlot.split(' ');
@@ -245,7 +246,9 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
     if (slotParts[1] == 'PM' && hour != 12) hour += 12;
     if (slotParts[1] == 'AM' && hour == 12) hour = 0;
     final scheduledAt = DateTime(now.year, now.month, now.day, hour, minute);
-    final amount = doctor.consultationFee * (feeMultiplier[_selectedType] ?? 1.0);
+    // The doctor's own price for this type, falling back to the derived rate
+    // when they have not set one. This is what the patient is actually charged.
+    final amount = doctor.feeFor(_selectedType);
 
     try {
       final id = await bookAppointment(
@@ -411,23 +414,19 @@ class _DoctorCard extends StatelessWidget {
 class _TypeSelector extends StatelessWidget {
   final List<({IconData icon, String label, String type, Color color})> types;
   final String selected;
-  final double doctorFee;
+  /// The doctor's actual price per type, already resolved by the caller.
+  final Map<String, double> fees;
   final ValueChanged<String> onSelect;
   const _TypeSelector({
     required this.types,
     required this.selected,
-    required this.doctorFee,
+    required this.fees,
     required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
-    final feeMap = {
-      'Video': doctorFee,
-      'Audio': doctorFee * 0.75,
-      'Chat': doctorFee * 0.5,
-      'In-Person': doctorFee * 0.5,
-    };
+    final feeMap = fees;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -481,7 +480,7 @@ class _TypeSelector extends StatelessWidget {
                       ),
                     ),
                     Text(
-                        '₹${(feeMap[t.label] ?? doctorFee).toStringAsFixed(0)}',
+                        '₹${(feeMap[t.label] ?? 0).toStringAsFixed(0)}',
                         style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
@@ -644,13 +643,6 @@ class _PaymentStep extends StatefulWidget {
 }
 
 class _PaymentStepState extends State<_PaymentStep> {
-  static const _feeMultiplier = {
-    'Video': 1.0,
-    'Audio': 0.75,
-    'Chat': 0.5,
-    'In-Person': 0.5,
-  };
-
   late final String _txnRef = UpiPaymentService.newTxnRef();
   final _utrCtrl = TextEditingController();
 
@@ -661,7 +653,8 @@ class _PaymentStepState extends State<_PaymentStep> {
 
   bool get _hasUpi => UpiPaymentService.isValidVpa(widget.doctorUpiId);
 
-  double get _fee => widget.doctorFee * (_feeMultiplier[widget.type] ?? 1.0);
+  /// Already resolved to this consultation type by the caller.
+  double get _fee => widget.doctorFee;
 
   @override
   void dispose() {

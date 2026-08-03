@@ -221,17 +221,19 @@ class DoctorProfileScreen extends ConsumerWidget {
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 12),
                   ...[
+                    // Reads the doctor's own per-type prices, so this summary
+                    // always matches what a patient is quoted at booking.
                     (Icons.videocam_rounded, 'Video Consultation',
-                        '₹${doc?.consultationFee.toStringAsFixed(0) ?? '—'}',
+                        '₹${(doc?.feeFor('Video') ?? 500).toStringAsFixed(0)}',
                         AppColors.doctorPrimary),
                     (Icons.call_rounded, 'Audio Consultation',
-                        '₹${((doc?.consultationFee ?? 500) * 0.75).toStringAsFixed(0)}',
+                        '₹${(doc?.feeFor('Audio') ?? 375).toStringAsFixed(0)}',
                         const Color(0xFF7C3AED)),
                     (Icons.chat_rounded, 'Chat Consultation',
-                        '₹${((doc?.consultationFee ?? 500) * 0.5).toStringAsFixed(0)}',
+                        '₹${(doc?.feeFor('Chat') ?? 250).toStringAsFixed(0)}',
                         AppColors.doctorAccent),
                     (Icons.local_hospital_rounded, 'In-Person',
-                        '₹${((doc?.consultationFee ?? 500) * 0.5).toStringAsFixed(0)}',
+                        '₹${(doc?.feeFor('In-Person') ?? 250).toStringAsFixed(0)}',
                         AppColors.warning),
                   ].map((m) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
