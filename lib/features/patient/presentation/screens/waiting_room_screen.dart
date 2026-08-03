@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/app_providers.dart';
@@ -181,7 +182,7 @@ class _WaitingBody extends ConsumerWidget {
               child: Center(
                   child: Padding(
                 padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
+                child: DlLoader(),
               )),
             ),
             error: (_, __) => const SizedBox.shrink(),
@@ -273,8 +274,7 @@ class _WaitingBody extends ConsumerWidget {
                           ? const SizedBox(
                               width: 24,
                               height: 24,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2))
+                              child: DlLoader())
                           : Text(
                               '#$position',
                               style: const TextStyle(

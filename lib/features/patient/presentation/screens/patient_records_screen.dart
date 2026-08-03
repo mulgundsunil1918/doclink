@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/prescription_template.dart';
 import '../../../../core/providers/app_providers.dart';
@@ -151,7 +152,7 @@ class _VisitsTab extends StatelessWidget {
     final aptsAsync = ref.watch(patientAppointmentsProvider);
     return aptsAsync.when(
       loading: () =>
-          const Center(child: CircularProgressIndicator()),
+          const Center(child: DlLoader()),
       error: (_, __) => const Center(
           child: Text('Failed to load visits',
               style: TextStyle(color: AppColors.slate400))),
@@ -451,7 +452,7 @@ class _PrescriptionsTab extends StatelessWidget {
     final rxAsync = ref.watch(patientPrescriptionsProvider);
     return rxAsync.when(
       loading: () =>
-          const Center(child: CircularProgressIndicator()),
+          const Center(child: DlLoader()),
       error: (_, __) => const Center(
           child: Text('Failed to load prescriptions',
               style: TextStyle(color: AppColors.slate400))),

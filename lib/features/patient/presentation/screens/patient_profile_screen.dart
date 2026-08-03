@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -158,7 +159,7 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
 
     return patientAsync.when(
       loading: () => const Scaffold(
-          body: Center(child: CircularProgressIndicator())),
+          body: Center(child: DlLoader())),
       error: (_, __) => const Scaffold(
           body: Center(child: Text('Failed to load profile'))),
       data: (patient) {

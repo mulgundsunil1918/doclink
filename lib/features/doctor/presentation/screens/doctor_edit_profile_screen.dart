@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/services/payment/upi_payment_service.dart';
@@ -112,7 +113,7 @@ class _DoctorEditProfileScreenState
                   child: SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2)),
+                      child: DlLoader()),
                 )
               : TextButton(
                   onPressed: _save,
@@ -251,8 +252,7 @@ class _DoctorEditProfileScreenState
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                      child: DlLoader())
                   : const Text('Save Profile',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),

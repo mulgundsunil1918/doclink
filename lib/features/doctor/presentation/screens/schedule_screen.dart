@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -228,7 +229,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
               child: SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
+                  child: DlLoader()),
             ),
           if (_isOpen)
             PopupMenuButton<String>(
@@ -297,7 +298,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
           if (_loading)
             const ColoredBox(
               color: Color(0x44FFFFFF),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: DlLoader()),
             ),
         ],
       ),

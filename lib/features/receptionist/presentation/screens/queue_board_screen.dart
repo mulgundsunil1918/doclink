@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -40,7 +41,7 @@ class _QueueBoardScreenState extends ConsumerState<QueueBoardScreen> {
   Widget build(BuildContext context) {
     final queueAsync = ref.watch(todayQueueProvider);
     return queueAsync.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: Center(child: DlLoader())),
       error: (_, __) => _buildScreen(context, []),
       data: (queue) => _buildScreen(context, queue),
     );
@@ -253,8 +254,7 @@ class _QueueBoardScreenState extends ConsumerState<QueueBoardScreen> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                          child: DlLoader())
                       : const Text('Add to Queue'),
                 ),
               ),

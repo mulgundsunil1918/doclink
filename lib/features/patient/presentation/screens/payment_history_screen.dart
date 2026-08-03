@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -23,7 +24,7 @@ class PaymentHistoryScreen extends ConsumerWidget {
       ),
       body: paymentsAsync.when(
         loading: () =>
-            const Center(child: CircularProgressIndicator()),
+            const Center(child: DlLoader()),
         error: (_, __) =>
             const Center(child: Text('Failed to load payments')),
         data: (payments) {

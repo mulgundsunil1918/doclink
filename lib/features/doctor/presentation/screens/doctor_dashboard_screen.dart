@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/app_providers.dart';
@@ -19,7 +20,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
 
     return doctorAsync.when(
       loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: DlLoader()),
       ),
       error: (_, __) => _buildBody(context, ref, null, [], greeting),
       data: (doc) => aptsAsync.when(

@@ -4,29 +4,31 @@ class AppColors {
   AppColors._();
 
   // ── Brand ─────────────────────────────────────────────────────────────────
-  static const primary        = Color(0xFF2563EB);
-  static const primaryDark    = Color(0xFF1D4ED8);
-  static const primaryDeep    = Color(0xFF1E40AF);
-  static const primaryLight   = Color(0xFFEFF6FF);
-  static const primaryMid     = Color(0xFFBFDBFE);
+  // Doclink violet/blush, matched to the identity on doclink-site so the
+  // marketing site and the product read as one product.
+  static const primary        = Color(0xFF6D4C9F);
+  static const primaryDark    = Color(0xFF573D80);
+  static const primaryDeep    = Color(0xFF4A3267);
+  static const primaryLight   = Color(0xFFF3EDFA);
+  static const primaryMid     = Color(0xFFD6C7EC);
 
-  static const accent         = Color(0xFF10B981);
-  static const accentDark     = Color(0xFF059669);
-  static const accentLight    = Color(0xFFECFDF5);
+  static const accent         = Color(0xFFDE638A);
+  static const accentDark     = Color(0xFFC04C72);
+  static const accentLight    = Color(0xFFFDF0F4);
 
   // ── Backgrounds ───────────────────────────────────────────────────────────
-  static const background     = Color(0xFFF0F4FF);
+  static const background     = Color(0xFFF9F7FC);
   static const surface        = Color(0xFFFFFFFF);
-  static const surfaceVariant = Color(0xFFF8FAFC);
+  static const surfaceVariant = Color(0xFFF6F3FA);
 
   // ── Text ──────────────────────────────────────────────────────────────────
-  static const textPrimary    = Color(0xFF0F172A);
-  static const textSecondary  = Color(0xFF475569);
-  static const textMuted      = Color(0xFF94A3B8);
+  static const textPrimary    = Color(0xFF1F1730);
+  static const textSecondary  = Color(0xFF574A6B);
+  static const textMuted      = Color(0xFF9A8FAD);
 
   // ── Border ────────────────────────────────────────────────────────────────
-  static const border         = Color(0xFFE2E8F0);
-  static const borderLight    = Color(0xFFF1F5F9);
+  static const border         = Color(0xFFE7E0F0);
+  static const borderLight    = Color(0xFFF2EDF8);
 
   // ── Semantic ──────────────────────────────────────────────────────────────
   static const success        = Color(0xFF22C55E);
@@ -63,7 +65,7 @@ class AppColors {
   static const patientBorder  = border;
 
   // ── Dark surfaces (video call, AI chat) ───────────────────────────────────
-  static const darkBg         = Color(0xFF0F172A);
-  static const darkCard       = Color(0xFF1E293B);
-  static const darkBorder     = Color(0xFF334155);
+  static const darkBg         = Color(0xFF0F0B16);
+  static const darkCard       = Color(0xFF1E1829);
+  static const darkBorder     = Color(0xFF2C2438);
 }

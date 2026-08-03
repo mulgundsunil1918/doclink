@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -6,6 +7,7 @@ import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/dl_card.dart';
+import 'appearance_settings_screen.dart';
 import 'doctor_edit_profile_screen.dart';
 import 'prescription_template_settings_screen.dart';
 
@@ -17,7 +19,7 @@ class DoctorProfileScreen extends ConsumerWidget {
     final doctorAsync = ref.watch(currentDoctorProvider);
     return doctorAsync.when(
       loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+          const Scaffold(body: Center(child: DlLoader())),
       error: (_, _) => _buildScaffold(context, ref, null),
       data: (doc) => _buildScaffold(context, ref, doc),
     );
@@ -365,6 +367,37 @@ class DoctorProfileScreen extends ConsumerWidget {
                           height: 1.4),
                     ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Clinic Appearance
+            DlCard(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.palette_outlined,
+                      color: AppColors.accent, size: 20),
+                ),
+                title: const Text('Clinic Appearance',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: const Text(
+                    'Brand colour, dark mode, density, text size & animation',
+                    style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_right,
+                    color: AppColors.slate400),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AppearanceSettingsScreen(),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 16),

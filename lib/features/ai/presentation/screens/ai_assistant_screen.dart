@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -701,8 +702,7 @@ class _ChatInput extends StatelessWidget {
               child: loading
                   ? const Padding(
                       padding: EdgeInsets.all(11),
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: _kText))
+                      child: DlLoader())
                   : const Icon(Icons.send_rounded,
                       color: Colors.white, size: 18),
             ),
@@ -1347,8 +1347,7 @@ class _DrugInfoTabState extends State<_DrugInfoTab> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                          child: DlLoader())
                       : const Icon(Icons.science_rounded,
                           color: Colors.white, size: 18),
                 ),
@@ -1984,8 +1983,7 @@ class _GenButton extends StatelessWidget {
               const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
+                child: DlLoader(),
               )
             else
               Icon(icon, color: Colors.white, size: 16),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -55,7 +56,7 @@ class _FamilyProfilesScreenState extends ConsumerState<FamilyProfilesScreen> {
       ),
       body: membersAsync.when(
         loading: () =>
-            const Center(child: CircularProgressIndicator()),
+            const Center(child: DlLoader()),
         error: (_, __) => const Center(child: Text('Failed to load profiles')),
         data: (members) {
           if (members.isEmpty) return _EmptyState(
@@ -266,8 +267,7 @@ class _FamilyProfilesScreenState extends ConsumerState<FamilyProfilesScreen> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                          child: DlLoader())
                       : const Text('Add Member'),
                 ),
               ),

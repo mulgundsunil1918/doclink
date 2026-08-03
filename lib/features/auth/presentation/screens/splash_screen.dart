@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -150,10 +151,7 @@ class _SplashScreenState extends State<SplashScreen>
                               SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white.withValues(alpha: 0.4),
-                                ),
+                                child: DlLoader(),
                               ),
                               const SizedBox(height: 14),
                               const Text('Checking session...',

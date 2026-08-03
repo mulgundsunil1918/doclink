@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/app_providers.dart';
@@ -118,7 +119,7 @@ class _ReminderCenterScreenState extends ConsumerState<ReminderCenterScreen>
 
     return queueAsync.when(
       loading: () => const Scaffold(
-          body: Center(child: CircularProgressIndicator())),
+          body: Center(child: DlLoader())),
       error: (_, __) => const Scaffold(
           body: Center(child: Text('Failed to load appointments'))),
       data: (allApts) {
@@ -471,7 +472,7 @@ class _ReminderCardState extends State<_ReminderCard> {
                       ? const SizedBox(
                           width: 14,
                           height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                          child: DlLoader())
                       : const Text('Send Now',
                           style: TextStyle(fontSize: 12)),
                 ),

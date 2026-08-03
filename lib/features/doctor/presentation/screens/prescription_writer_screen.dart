@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/models/prescription_template.dart';
@@ -368,8 +369,7 @@ class _PrescriptionWriterScreenState
                   icon: _isAiFilling
                       ? const SizedBox(
                           width: 16, height: 16,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
+                          child: DlLoader())
                       : const Icon(Icons.bolt),
                   label: Text(_isAiFilling ? 'Generating...' : 'Generate with AI ⚡'),
                 ),
@@ -474,7 +474,7 @@ class _PrescriptionWriterScreenState
               padding: EdgeInsets.all(16),
               child: SizedBox(
                   width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
+                  child: DlLoader()),
             )
           else
             TextButton(
@@ -736,7 +736,7 @@ class _PrescriptionWriterScreenState
     final doctorAsync = ref.watch(currentDoctorProvider);
     return doctorAsync.when(
       loading: () =>
-          const Center(child: CircularProgressIndicator()),
+          const Center(child: DlLoader()),
       error: (_, _) => const Center(child: Text('Could not load doctor info')),
       data: (doc) {
         if (doc == null) return const Center(child: Text('Not logged in'));

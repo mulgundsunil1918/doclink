@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -139,7 +140,7 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
           ? const Center(
               child: Padding(
                 padding: EdgeInsets.all(40),
-                child: CircularProgressIndicator(),
+                child: DlLoader(),
               ),
             )
           : _SlotPicker(
@@ -290,7 +291,7 @@ class _DoctorSelector extends ConsumerWidget {
     final docsAsync = ref.watch(allDoctorsProvider);
     return docsAsync.when(
       loading: () =>
-          const Center(child: CircularProgressIndicator()),
+          const Center(child: DlLoader()),
       error: (_, __) => const Center(
         child: Text('Failed to load doctors',
             style: TextStyle(color: AppColors.slate500)),
@@ -878,8 +879,7 @@ class _PaymentStepState extends State<_PaymentStep> {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                    child: DlLoader())
                 : const Text("I've Paid — Confirm Booking",
                     style: TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w600)),
@@ -904,8 +904,7 @@ class _PaymentStepState extends State<_PaymentStep> {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                    child: DlLoader())
                 : Text('Book & Pay ₹$fee at Clinic',
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w600)),

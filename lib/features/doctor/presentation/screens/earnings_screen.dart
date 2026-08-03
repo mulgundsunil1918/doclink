@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -23,7 +24,7 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
 
     return doctorAsync.when(
       loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+          const Scaffold(body: Center(child: DlLoader())),
       error: (_, __) => _buildScaffold(context, null, [], []),
       data: (doc) => monthlyAsync.when(
         loading: () => _buildScaffold(context, doc, [], []),
@@ -506,7 +507,7 @@ class _PendingRowState extends ConsumerState<_PendingRow> {
             const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2))
+                child: DlLoader())
           else ...[
             IconButton(
               tooltip: 'Money did not arrive',

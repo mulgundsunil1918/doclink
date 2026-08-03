@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -171,7 +172,7 @@ class _ChatConsultationScreenState
           Expanded(
             child: messagesAsync.when(
               loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+                  const Center(child: DlLoader()),
               error: (_, __) => const Center(
                   child: Text('Failed to load messages',
                       style: TextStyle(color: AppColors.slate400))),
@@ -255,8 +256,7 @@ class _ChatConsultationScreenState
                             child: SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                              child: DlLoader(),
                             ),
                           )
                         : const Icon(Icons.send_rounded,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/app_providers.dart';
@@ -35,7 +36,7 @@ class _PatientAppointmentsScreenState
     final aptsAsync = ref.watch(patientAppointmentsProvider);
     return aptsAsync.when(
       loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: DlLoader()),
       ),
       error: (_, __) => _buildScaffold(context, []),
       data: (apts) => _buildScaffold(context, apts),
@@ -328,7 +329,7 @@ class _AppointmentCardState extends State<_AppointmentCard> {
                             width: 14,
                             height: 14,
                             child:
-                                CircularProgressIndicator(strokeWidth: 2))
+                                DlLoader())
                         : const Text('Cancel',
                             style: TextStyle(fontSize: 12)),
                   ),

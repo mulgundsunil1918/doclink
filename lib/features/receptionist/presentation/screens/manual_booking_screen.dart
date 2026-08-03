@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -135,8 +136,7 @@ class _ManualBookingScreenState extends ConsumerState<ManualBookingScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
+                            child: DlLoader())
                         : Text(_step < 3 ? 'Continue' : 'Confirm Booking'),
                   ),
                 ),
@@ -331,7 +331,7 @@ class _ManualBookingScreenState extends ConsumerState<ManualBookingScreen> {
                 loading: () => const Center(
                     child: Padding(
                   padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: DlLoader(),
                 )),
                 error: (_, __) => const SizedBox.shrink(),
                 data: (patients) {

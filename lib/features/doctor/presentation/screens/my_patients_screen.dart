@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -93,7 +94,7 @@ class MyPatientsScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: patientsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: DlLoader()),
         error: (_, __) =>
             const Center(child: Text('Could not load patients')),
         data: (patients) {

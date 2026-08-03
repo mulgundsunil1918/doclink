@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/dl_loader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/prescription_template.dart';
 import '../../../../core/providers/app_providers.dart';
@@ -106,7 +107,7 @@ class _PrescriptionTemplateSettingsScreenState
     final doctorAsync = ref.watch(currentDoctorProvider);
     return doctorAsync.when(
       loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+          const Scaffold(body: Center(child: DlLoader())),
       error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
       data: (doc) {
         if (doc != null) _initFromDoctor(doc);
@@ -126,7 +127,7 @@ class _PrescriptionTemplateSettingsScreenState
               child: SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
+                  child: DlLoader()),
             )
           else
             TextButton(
